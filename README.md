@@ -1,15 +1,11 @@
- 
-                                                                                  iImport
-=========================================================================================
-                                                                     birdslikewires.co.uk
+iImport vX.XX
+=============
+
+iImport is a set of scripts that automatically import video content, fetched using get_iplayer, into iTunes. The scripts are designed to run on Mac OS X systems running 10.5.8 or higher, both Intel and PowerPC.
 
 
-What Does iImport Do?
----------------------
-
-iImport is a set of scripts that automatically import video content, fetched using get_iplayer, into iTunes.
-
-The scripts are designed to run on Mac OS X systems running 10.5.8 or higher, both Intel and PowerPC.
+Introduction
+------------
 
 Episode and series names, artwork, descriptions and other metadata are collected or generated and added to the file using a number of third-party metadata editors. The aim is to result in an iTunes-friendly file that will work for a variety of Apple devices; most notably the Apple TV. Additionally, there are two PHP files and a script that can be used to provide a simple web interface.
 
