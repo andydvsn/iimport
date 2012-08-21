@@ -47,6 +47,10 @@ http://handbrake.fr/downloads2.php
 
 Only required if you wish to re-encode the download for the 1st Generation Apple TV.
 
+Installation
+------------
+
+Install all the bits in the right place and choose the right options. More details to follow. ;)
 
 
 Configuration

@@ -33,6 +33,8 @@ fi
 TWEET=0
 # Do you want to re-encode content for the Apple TV (1st Gen)?
 ATVENC=0
+# Do you want to fetch SD counterparts to HD content?
+SDFETCH=1
 # Are you debugging the script?
 DEBUG=0
 # Dependency locations...
@@ -568,7 +570,7 @@ if [[ "$1" == "agent" || "$1" == "download" || "$1" == "" ]]; then
 	# Create a lockfile so agent requests can't run over us.
 	touch $IITMP/iimport_lock
 
-	for i in `ls -1 /tmp/iimport | grep "\.mp" | grep -v "\.flv"`; do
+	for i in `ls -1 /tmp/iimport | grep "\.mp4" | grep -v "\.flv"`; do
 
 		NEWFILE=$i
 
@@ -582,14 +584,14 @@ if [[ "$1" == "agent" || "$1" == "download" || "$1" == "" ]]; then
 		fi
 		
 		# If we've fetched a hi-def file, download an SD copy as well for other devices.
-		if [[ "$PROGHD" == "1" ]] && [[ "$PROGNUMPID" != "" ]]; then
+		if [ $SDFETCH -eq 1 ] && [ "$PROGDEF" = "HD" ] && [ "$PROGNUMPID" != "" ]; then
 			
 			# But only if we're not refetching to get a HD copy that wasn't available earlier.
 			PROGALREADYSD=`cat /Users/$USER/.get_iplayer/download_history | grep "$PROGPID" | grep "flashvhigh"`
 			
-			if [[ "$PROGALREADYSD" == "" ]]; then	
+			if [ "$PROGALREADYSD" = "" ]; then	
 				echo >> $IILOG
-				echo "This episode of "$PROGSERIES" is in HD. Fetching SD counterpart..." >> $IILOG
+				echo "Fetching SD counterpart..." >> $IILOG
 				/bin/mv $IITMP/$NEWFILE $IITMP/hd"$NEWFILE"
 				CTPRFILE="sd""$NEWFILE"
 				NEWFILE="hd""$NEWFILE"
@@ -603,7 +605,7 @@ if [[ "$1" == "agent" || "$1" == "download" || "$1" == "" ]]; then
 		tag $NEWFILE
 		import $NEWFILE
 		
-		if [[ "$PROGHD" == "1" ]] && [[ "$PROGNUMPID" != "" ]] && [[ "$PROGALREADYSD" == "" ]]; then
+		if [ "$PROGHD" = "true" ] && [ "$PROGNUMPID" != "" ] && [ "$PROGALREADYSD" = "" ]; then
 		
 			echo -n "Waiting for SD counterpart..." >> $IILOG
 		
@@ -620,19 +622,25 @@ if [[ "$1" == "agent" || "$1" == "download" || "$1" == "" ]]; then
 		
 		fi
 		
+		# Logging info.
 		if [[ "$PROGONEOFF" -gt 0 ]]; then
 			echo "The programme '$PROGSERIESFULL' finished importing at `date  +'%H:%M:%S'` on `date  +'%d %b %Y'`." >> $IILOG
 			echo >> $IILOG
 		else
-			echo "The episode '$PROGEPISODE' of '$PROGSERIESFULL' finished importing at `date  +'%H:%M:%S'` on `date  +'%d %b %Y'`." >> $IILOG
+			echo "The $PROGDEF episode '$PROGEPISODE' of '$PROGSERIESFULL' finished importing at `date  +'%H:%M:%S'` on `date  +'%d %b %Y'`." >> $IILOG
 			echo >> $IILOG
 		fi
 		
+		echo $NEWFILE
+		
+		# Delete the copy we've been playing with.
 		if [ $DEBUG -ne 1 ]; then
-			rm $IITMP/*"$PROGPID"_"$PROGSOURCESHRT"* &>/dev/null
+			echo Removing
+			rm $NEWFILE &>/dev/null
 		else
+			echo Moving
 			echo -n "Moving temp files for '$PROGPID' to trash..."
-			mv $IITMP/*"$PROGPID"_"$PROGSOURCESHRT"* /Users/$USER/.Trash/
+			mv $NEWFILE /Users/$USER/.Trash/
 			echo " done."
 		fi
 		
