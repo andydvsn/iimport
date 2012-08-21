@@ -1,0 +1,294 @@
+#!/bin/bash
+
+# iImport Web Control Script v3.19
+# Copyright 2011 Andy Davison
+
+# ./iimportweb [ add 'programme name' | remove 'programme name' | search 'programme name' | get 'programme id' | saved | download ]
+
+# =======================================================================
+# This file is part of iImport.
+#
+#   iImport is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    iImport is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with iImport.  If not, see <http://www.gnu.org/licenses/>.
+# =======================================================================
+
+echo "This is totally broken at the moment. Don't use it."
+exit 0
+
+DISABLESIGNED=1
+
+IIMPORTWEBUSER=`/bin/cat /etc/iimport/webuser`
+SHOWNAMEESC=$2
+SHOWNAMECLEAN="$(echo $2 | sed 's/\\//g')"
+SHOWNAMEESCNOSERIES="$(echo $2 | awk -F\\:\ Series\  '{print $1}')"
+SHOWNAMECLEANNOSERIES="$(echo $SHOWNAMECLEAN | awk -F\\:\ Series\  '{print $1}')"
+SHOWNAMECONCAT="$(echo $SHOWNAMECLEAN | sed 's/ //g')"
+SHOWNAMECONCATNOSERIES="$(echo $SHOWNAMECLEANNOSERIES | sed 's/ //g')"
+SHOWNAMECLEANCONCATNOSERIES=${SHOWNAMECONCATNOSERIES//[^a-zA-Z0-9]/}
+
+chmod 777 /tmp/iimport*
+
+
+if [[ $1 == "add" || $1 == "Add" || $1 == "remove" || $1 == "Remove" || $1 == "search" || $1 == "get" || $1 == "saved" || $1 == "download" || $1 == "verify" ]];
+then
+
+
+# Set up handy subroutine to be called later
+
+returnsaved () {
+
+	LIST=`ls /Users/$IIMPORTWEBUSER/.get_iplayer/pvr/`
+
+	if [[ "$LIST" == "" ]]
+	then
+	
+		echo "<div id=\"pvractivelist\"><p>No programmes are set to download.</p></div>"
+
+	else
+
+		echo "<div id=\"pvractivelist\">"
+		for PROGRAMME in $LIST
+		do
+			echo "<input type=\"submit\" name=\"pvract\" class=\"pvrprogrem\" value=\"Remove $PROGRAMME\" />"
+		done	
+		echo "</div><!-- END #pvractivelist -->"
+		
+	fi
+
+}
+
+
+# This section adds programmes to the PVR
+
+	if [[ $1 == "add" || $1 == "Add" ]]
+	then
+	
+		if [[ $2 == "" ]]
+		then
+		
+			echo "<div id=\"pvractivelist\"><p>Please enter a programme to add.</p></div>"
+			
+		else
+		
+			touch /Users/$IIMPORTWEBUSER/.get_iplayer/pvr/$SHOWNAMECONCATNOSERIES
+			echo "type tv" >> /Users/$IIMPORTWEBUSER/.get_iplayer/pvr/$SHOWNAMECONCATNOSERIES
+			echo search0 $SHOWNAMECLEANNOSERIES >> /Users/$IIMPORTWEBUSER/.get_iplayer/pvr/$SHOWNAMECONCATNOSERIES
+			
+			echo "<div id=\"pvractivelist\"><p class=\"pvraddok\">Added '$SHOWNAMECLEANNOSERIES'.</p></div>"
+
+		fi
+	fi
+
+
+# This section removes programmes from the PVR
+
+	if [[ $1 == "remove" || $1 == "Remove" ]]
+	then
+	
+		if [[ $2 == "" ]]
+		then
+		
+			echo "<div id=\"pvractivelist\"><p>Please enter a programme to remove.</p></div>"
+			
+		else
+
+			rm /Users/$IIMPORTWEBUSER/.get_iplayer/pvr/$2
+						
+			returnsaved
+			
+		fi
+	fi
+
+
+# This section searches for programmes to add, returning all programmes if none are entered
+
+	if [[ $1 == "search" ]]
+	then
+		
+		#Generate a search result file for 'TV' content.
+		
+		if [ $DISABLESIGNED == 0 ];
+		then
+			cat /Users/$IIMPORTWEBUSER/.get_iplayer/tv.cache | awk -F\\\| 'NR>1 {print $3}' | grep -i "$SHOWNAMEESC" | awk '!x[$0]++' > /tmp/iimportweb_search_tv
+		else
+			cat /Users/$IIMPORTWEBUSER/.get_iplayer/tv.cache | grep -v \|signed\| | awk -F\\\| 'NR>1 {print $3}' | grep -i "$SHOWNAMEESC" | awk '!x[$0]++' > /tmp/iimportweb_search_tv
+		fi
+
+		chmod 777 /tmp/iimport*
+		
+		if [[ `cat /tmp/iimportweb_search_tv` == "" ]]
+		then
+		
+			echo "<div id=\"pvractivelist\">"
+			
+			if [[ "$SHOWNAMECLEAN" != "" ]]
+			then
+			
+				echo "<input type=\"submit\" name=\"pvradd\" class=\"pvrprogadd linebelow\" value=\"$SHOWNAMECLEAN\" />"
+				echo "<p>Programme not currently available.</p></div>"
+				
+			else
+			
+				echo "<input type=\"submit\" name=\"pvrfill\" class=\"pvrprogadd linebelow\" value=\"Download cache.\" />"
+				echo "<p>Your programme cache is empty. Please tap above to update or create your cache file.</p></div>"
+
+			fi
+			
+		else
+			
+			echo "<div id=\"pvractivelist\">"
+			
+			if [[ "$SHOWNAMECLEAN" != "" ]]
+			then
+				echo "<input type=\"submit\" name=\"pvradd\" class=\"pvrprogadd\" value=\"$SHOWNAMECLEAN\" />"
+			fi
+			
+			#echo "<h5>BBC</h5>"
+			while read LINE
+				do
+				echo "<input type=\"submit\" name=\"pvrvfy\" class=\"pvrproglist\" value=\"$LINE\" />"
+				done < /tmp/iimportweb_search_tv
+				
+			echo "</div><!-- END #pvractivelist -->"
+			
+		fi
+				
+	fi
+	
+
+# This section shows you details about the programme and gives you a chance to confirm its addition to the PVR
+	
+	if [[ $1 == "verify" ]]
+	then
+	
+		cat /Users/$IIMPORTWEBUSER/.get_iplayer/tv.cache > /tmp/iimportweb_masterlist
+		chmod 777 /tmp/iimport*
+	
+		cat /tmp/iimportweb_masterlist | grep -i "|$SHOWNAMECLEAN|" > /tmp/iimportweb_searchresults
+		chmod 777 /tmp/iimport*
+	
+		SEARCHRESULTS=`cat /tmp/iimportweb_searchresults`
+		
+		if [[ "$SEARCHRESULTS" == "" ]]
+		then
+		
+			echo "<input type=\"submit\" name=\"pvradd\" class=\"pvrprogadd\" value=\"$SHOWNAMECLEAN\" />"
+			echo "<div id=\"pvractivelist\"><p>Programme information currently unavailable.</p></div>"
+			
+		else
+	
+			echo "<div id=\"pvractivelist\">"
+			echo "<input type=\"submit\" name=\"pvradd\" class=\"pvrprogadd\" value=\"$SHOWNAMECLEAN\" />"
+			
+			while read LINE
+				do
+					echo -n "<div class=\"programme\"><input type=\"submit\" name=\"pvrget\" class=\"pvrprogget\" value=\""
+					echo -n $LINE | awk -F\\\| '{print $1}'
+					echo -n "\" /><h4><img src=\""
+					echo -n $LINE | awk -F\\\| '{print $14}'
+					echo -n "\" class=\"pvrprogimg\" alt=\"Episode image.\" style=\"display: none;\" />"
+					echo -n $LINE | awk -F\\\| '{print $6}'
+					echo -n "</h4><p>"
+					echo -n $LINE | awk -F\\\| '{print $11}'
+					echo "</p></div>"
+				done < /tmp/iimportweb_searchresults
+				
+			echo "</div><!-- END #pvractivelist -->"
+		fi
+	fi
+
+
+# This section lets you grab a single program, rather than adding the whole series to the PVR list
+	
+	if [[ $1 == "get" ]]
+	then
+	
+		if [[ $2 == "" ]]
+		then
+		
+			echo "<div id=\"pvractivelist\"><p>No programme ID supplied.</p></div>"
+			
+		else
+			
+			cat /tmp/iimportweb_searchresults | grep -w $SHOWNAMECLEAN | awk -F\\\| '{print $6}' > /tmp/iimportweb_getepisode
+			cat /tmp/iimportweb_searchresults | grep -w $SHOWNAMECLEAN | awk -F\\\| '{print $3}' > /tmp/iimportweb_getseries
+			chmod 777 /tmp/iimport*
+
+			EPISODENAME=`cat /tmp/iimportweb_getepisode`
+			SERIESNAME=`cat /tmp/iimportweb_getseries`
+			
+			echo $2 > /etc/iimport/trigger
+			echo "<div id=\"pvractivelist\"><p class=\"pvraddok\">Downloading '$EPISODENAME' from '$SERIESNAME'.</p></div>"
+
+		fi
+	fi
+
+
+# This section displays programmes already saved for retrieval
+
+	if [[ $1 == "saved" ]]
+	then
+		
+		returnsaved
+			
+	fi
+
+
+# This section triggers the scripts to run by touching a predetermined file which is being watched for changes
+
+	if [[ $1 == "download" ]]
+	then
+		
+		touch /etc/iimport/trigger
+		
+		echo "<div id=\"pvractivelist\"><p>Downloading has been triggered.</p></div>"
+			
+	fi
+
+
+# Fire off a vaguely helpful message if you don't enter any of the above options
+		
+else
+
+	echo "Usage: iimportweb [ add 'programme name' | remove 'programme name' | search 'programme name' | get 'programme id' | saved | download ]"
+	
+	
+fi
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

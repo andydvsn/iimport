@@ -1,0 +1,750 @@
+#!/bin/bash
+
+# iImport v3.30 (21st August 2012) by Andy Davison
+#  Imports content from get_iplayer into iTunes.
+
+if [ "$1" == "-h" ]; then
+	echo "./iimport [ agent | download | init | report ]"
+	exit 0
+fi
+
+
+# =======================================================================
+# This file is part of iImport.
+#
+#   iImport is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    iImport is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with iImport.  If not, see <http://www.gnu.org/licenses/>.
+# =======================================================================
+
+
+### Options #############################################################
+
+# Do you want to Tweet when something has been imported?
+TWEET=0
+# Do you want to re-encode content for the Apple TV (1st Gen)?
+ATVENC=0
+# Are you debugging the script?
+DEBUG=0
+# Dependency locations...
+GETIPLAYER="/usr/local/bin/get_iplayer"
+MEDIAINFO="/usr/local/bin/mediainfo"
+HANDBRAKE="/usr/local/bin/handbrake"
+TTYTTER="/usr/local/bin/ttytter"
+
+#########################################################################
+
+
+# Read options from ~/.get_iplayer/options
+GIOPTS=`cat /Users/$USER/.get_iplayer/options`
+IITMP=`echo "$GIOPTS" | awk -F\output\  {'print $2'}`
+IITMP=`echo $IITMP | tr -d '\r'`
+
+ATOMICPARSLEY=`echo "$GIOPTS" | awk -F\atomicparsley\  {'print $2'}`
+
+# Don't let the log file grow too big.
+IILOG="/Users/$USER/Library/Logs/iimport.log"
+find ~/Library/Logs/iimport.log -size +64k -exec rm -f {} \;
+touch $IILOG
+
+# Padding settings for Atomic Parsley.
+export AP_PADDING="DEFAULT_PAD=3072:MIN_PAD=3072:MAX_PAD=7168"
+
+# First, check to see if we're already encoding something.
+if [[ "$1" == "agent" ]] && [ -f $IITMP/iimport_lock ]; then
+	exit 0
+fi
+
+# Second, see how old the files in the temp directory are. If they're more than 24 hours old, delete them.
+IITMPOLD=`find $IITMP -type f -mtime +1`
+if [[ "$IITMPOLD" != "" ]]; then
+	killall rtmpdump
+	find $IITMP -type f -mtime +1 -exec rm {} \;
+	killall rtmpdump
+	echo >> $IILOG
+	echo "Forced removal of stalled files." >> $IILOG
+	echo >> $IILOG
+fi
+
+# Finally, check to see if we're already doing something processor intensive.
+if [[ "$1" == "agent" ]]; then
+	LOAD=`/usr/bin/uptime | awk -F\\averages\:\  '{print $2}' | awk -F\\\\\  '{print $2}' | bc | awk '{printf "%.0f\n", $1}'`
+	if [[ "$LOAD" -ge "3" ]]; then
+		exit 0
+	fi
+fi
+
+# Who's running the show?
+if [[ "$1" == "" ]];
+then
+	RUNBY=user
+else	
+	RUNBY="$1"
+fi
+
+# Housekeeping...
+touch $IILOG
+echo >> $IILOG
+[ -d $IITMP ] || mkdir -p $IITMP
+
+dhms() {
+	if [ -z $1 ]; then
+		echo "an indeterminate amount of time"
+		return 0
+	else
+		D=$(($1/86400))
+		if [ $D -eq 1 ]; then
+			DAYS="$D day"
+		elif [ $D -gt 1 ]; then
+			DAYS="$D days"
+		fi
+		H=$(($1/3600-$D*24))
+		if [ $H -eq 1 ]; then
+			HOURS="$H hour"
+		elif [ $H -gt 1 ]; then
+			HOURS="$H hours"
+		fi
+		M=$(($1/60-$D*1440-$H*60))
+		if [ $M -eq 1 ]; then
+			MINS="$M minute"
+		elif [ $M -gt 1 ]; then
+			MINS="$M minutes"
+		fi
+		S=$(($1-($D*86400)-($H*3600)-($M*60)))
+		if [ $S -eq 1 ]; then
+			SECS="$S second"
+		elif [ $S -gt 1 ]; then
+			SECS="$S seconds"
+		fi
+	fi
+	echo $DAYS $HOURS $MINS $SECS
+}
+
+roman() {
+
+	# Arabic number to Roman numeral conversion
+	# Range: 0 - 200
+	# It's crude, but it works.
+
+	if [ -z $1 ]; then
+		
+		echo "No parameters for roman numeral conversion."
+		return 0
+		
+	else
+		
+		num=$1
+
+		to_roman ()	{
+			number=$1
+			factor=$2
+			rchar=$3
+			let "remainder = number - factor"
+			while [ "$remainder" -ge 0 ]; do
+				echo -n $rchar
+				let "number -= factor"
+				let "remainder = number - factor"
+			done  
+			return $number
+		}
+
+		to_roman $num 100 C
+		num=$?
+		to_roman $num 90 LXXXX
+		num=$?
+		to_roman $num 50 L
+		num=$?
+		to_roman $num 40 XL
+		num=$?
+		to_roman $num 10 X
+		num=$?
+		to_roman $num 9 IX
+		num=$?
+		to_roman $num 5 V
+		num=$?
+		to_roman $num 4 IV
+		num=$?
+		to_roman $num 1 I
+
+		echo
+		
+	fi
+	
+}
+
+metadata() {
+		
+	### Figure out the common metadata first.
+
+	# Grab the original file metadata before we start toying with it.
+	FILEMETA=`$ATOMICPARSLEY $IITMP/$1 -t`
+
+	# Grab the metadata from the full cache file.
+	PROGPLUGIN=`echo $1 | awk -F\_ '{print $1}'`
+	
+	if [[ "$PROGPLUGIN" == "sdtv" ]] || [[ "$PROGPLUGIN" == "hdtv" ]]; then
+		PROGPLUGIN="tv"
+	fi
+	
+	PROGPID=`echo $1 | awk -F\_ '{print $2}'`
+	PROGSHORTPID=`echo $PROGPID | cut -b 4-99`
+	PROGINFO=`cat /Users/$USER/.get_iplayer/$PROGPLUGIN.cache | grep $PROGPID`
+	PROGINDEX=`echo $PROGINFO | awk -F\\| '{print $1}'`
+
+	# Convert short PID to numericPID for cnID.
+	ord() {
+	  printf '%d' "'$1"
+	}
+
+	PROGNUMPID=""
+	CNT=${#PROGSHORTPID}
+	for ((i=0; i < CNT; i++))
+	do
+		NUMERIC=`ord ${PROGSHORTPID:$i:1}`
+		if [[ ${#NUMERIC} > 2 ]]; then
+			NUMERIC=`echo $NUMERIC | cut -b 2-3`
+		fi
+		PROGNUMPID="$PROGNUMPID""$NUMERIC"
+	done
+
+	if [[ ${#PROGNUMPID} -gt 10 ]]; then
+		echo >> $IILOG
+		echo "Numeric PID is longer than 10 characters. Cannot be used for cnID." >> $IILOG
+		PROGNUMPID=""
+	fi
+
+	# This can convert back from numericPID. Just in case.
+	#
+	#	chr() {
+	#	  printf \\$(printf '%03o' $1)
+	#	}
+	#
+	#	ASCPID=""
+	#	CNT=$((${#PROGNUMPID}/2))
+	#	for ((i=0; i < CNT; i++))
+	#	do
+	#		BS=$(($i*2+1))
+	#		BE=$(($BS+1))
+	#		DECCHAR=`echo $PROGNUMPID | cut -b "$BS"-"$BE"`
+	#		DECCHAR=`expr $DECCHAR + 0`
+	#		if [[ "$DECCHAR" -le "22" ]]; then
+	#			if [[ "$DECCHAR" -le "9" ]]; then
+	#				DECCHAR="0""$DECCHAR"
+	#			fi
+	#			DECCHAR="1""$DECCHAR"
+	#		fi
+	#		ASCCHAR=`chr $DECCHAR`
+	#		ASCPID="$ASCPID""$ASCCHAR"	
+	#	done
+
+	# Get the year of broadcast.
+	PROGBCASTYEAR=`echo "$FILEMETA" | awk -F\day\"\ contains\:\  {'print $2'} | awk -F\- {'print $1'}`
+	PROGBCASTYEAR=`echo $PROGBCASTYEAR`
+
+	# Get the name of the tool used to encode the video file.
+	PROGENCTOOL=`echo "$FILEMETA" | awk -F\too\"\ contains\:\  {'print $2'}`
+	PROGENCTOOL=`echo $PROGENCTOOL`
+
+	# Get the long description metadata that was applied by get_iplayer.
+	PROGLDES=`echo "$FILEMETA" | awk -F\lyr\"\ contains\:\  {'print $2'}`
+	PROGLDES=`echo $PROGLDES`
+
+	# Process some of the metadata into an iTunes-friendly pieces.
+	PROGSERIESNUM=`echo $PROGINFO | awk -F\\| '{print $7}'`
+	if [[ "$PROGSERIESNUM" -lt "1" ]]; then
+		PROGSERIESNUM="1"
+	fi
+	PROGSERIESFULL=`echo $PROGINFO | awk -F\\| '{print $3}'`
+	PROGSERIES=`echo $PROGSERIESFULL | awk -F\\:\ Series '{print $1}'`
+
+	PROGEPISODENUM=`echo $PROGINFO | awk -F\\| '{print $8}'`
+	if [[ "$PROGEPISODENUM" -lt "1" ]]; then
+		PROGEPISODENUM="0"
+	fi
+	PROGEPISODEFULL=`echo $PROGINFO | awk -F\\| '{print $6}'`
+	PROGEPISODE=`echo $PROGEPISODEFULL | awk -F\$PROGEPISODENUM.\  '{print $2}'`
+	if [[ "$PROGEPISODE" == "" ]]; then
+		PROGEPISODE="$PROGEPISODEFULL"
+	fi
+
+	if [[ "$PROGEPISODE" == "-" ]]; then
+		PROGONEOFF="1"
+		PROGEPISODE="$PROGSERIES"
+	else
+		PROGONEOFF="0"
+	fi
+
+	PROGDESC=`echo $PROGINFO | awk -F\\| '{print $11}'`
+	PROGCHANNEL=`echo $PROGINFO | awk -F\\| {'print $12'}`
+
+	PROGADVISORY=`echo $PROGINFO | awk -F\\| '{print $16}'`
+	if [[ "$PROGADVISORY" == "Yes" ]]; then
+		PROGRATING="--rDNSatom \"uk-tv|TV-16|\" name=iTunEXTC domain=com.apple.iTunes"
+		PROGADVISORY="1"
+	else
+		PROGADVISORY="0"
+	fi
+
+	# Filter the multitude of genres down a little.
+	PROGGENRES=`echo $PROGINFO | awk -F\\| '{print $13}'`
+	if [[ "$PROGGENRES" =~ "Entertainment" ]]; then
+		PROGGENRE="Entertainment"
+	fi
+	if [[ "$PROGGENRES" =~ "Factual" ]]; then
+		PROGGENRE="Factual"
+	fi
+	if [[ "$PROGGENRES" =~ "Learning" ]]; then
+		PROGGENRE="Learning"
+	fi
+	if [[ "$PROGGENRES" =~ "Drama" ]]; then
+		PROGGENRE="Drama"
+	fi
+	if [[ "$PROGGENRES" =~ "Comedy" ]]; then
+		PROGGENRE="Comedy"
+	fi
+	if [[ "$PROGGENRES" =~ "Music" ]]; then
+		PROGGENRE="Music"
+	fi
+	if [[ "$PROGGENRES" =~ "Sport" ]]; then
+		PROGGENRE="Sport"
+	fi
+	if [[ "$PROGGENRES" =~ "Children's" ]]; then
+		PROGGENRE="Children's"
+	fi
+
+	### Figure out metadata specific to a particular plugin (tv,radio,etc)
+
+	if [[ "$PROGPLUGIN" == "tv" ]]; then
+
+		PROGTYPE="TV Show"
+
+		if [[ "$PROGGENRES" =~ "Films" ]]; then
+			PROGTYPE="Movie"
+		fi
+
+		PROGSOURCE="BBC iPlayer"
+		PROGSOURCESHRT="iplayer"
+		MINIYEAR=$(($PROGBCASTYEAR-2000))
+		ROMANYEAR=$(roman $MINIYEAR)
+		PROGCOPYRIGHT="(C) BBC MM$ROMANYEAR"
+		
+		# If there was no encoding tool information, just use the short source name.
+		[ "$PROGENCTOOL" = "" ] && PROGENCTOOL="$PROGSOURCESHRT$PROGBCASTYEAR"
+
+		# Cheeky hack to get Spotlight to index the file completely... don't look...
+		/bin/mv $IITMP/$1 /Users/$USER/Movies/
+		/bin/sleep 4
+		PROGMDLS=`/usr/bin/mdls /Users/$USER/Movies/$1`
+		# Quick! Put it back!
+		/bin/mv /Users/$USER/Movies/$1 $IITMP/
+
+		PROGXRES=`echo $PROGMDLS | awk -F\kMDItemPixelWidth {'print $2'} | awk -F\=\  {'print $2'} | awk -F\\  {'print $1'}`
+		PROGYRES=`echo $PROGMDLS | awk -F\kMDItemPixelHeight {'print $2'} | awk -F\=\  {'print $2'} | awk -F\\  {'print $1'}`
+
+		if [[ "$PROGXRES" == "" && "$PROGYRES" == "" ]]; then
+			echo >> $IILOG
+			echo "I've had some difficulty determining the resolution of this video. Continuing, but you may want to check the finished file..." >> $IILOG
+			LOGPROGRES=""
+		fi
+
+		if [[ "$PROGXRES" != "" && "$PROGYRES" != "" ]]; then
+			LOGPROGRES=" at "$PROGXRES"x"$PROGYRES""
+		fi
+
+		PROGCABAC=`$MEDIAINFO $IITMP/$1 | grep CABAC | awk -F\:\  {'print $2'}`
+
+		if [[ "$PROGYRES" -ge 720 ]]; then
+			PROGHD="true"
+			PROGDEF="HD"
+			LOGPROGHD=" in HD"
+		else
+			PROGHD="false"
+			PROGDEF="SD"
+			LOGPROGHD=""
+		fi
+
+	fi
+	
+}
+
+printmeta() {
+		
+	echo "$1 metadata:"
+	echo
+	echo "System:"
+	echo
+	echo "  Index:        $PROGINDEX"
+	echo "  Plugin:       $PROGPLUGIN"
+	echo "  Type:         $PROGTYPE"
+	echo "  Source:       $PROGSOURCE"
+	echo "  Short Source: $PROGSOURCESHRT"
+	echo "  Channel:      $PROGCHANNEL"
+	echo
+	echo "  PID:     $PROGPID"
+	echo "  SPID:    $PROGSHORTPID"
+	echo "  NPID:    $PROGNUMPID"
+	echo
+	echo "Human:"
+	echo
+	echo "  Full Series Title:   $PROGSERIESFULL"	
+	echo "  Short Series Title:  $PROGSERIES"
+	echo "  Series Number:       $PROGSERIESNUM"
+	echo "  Copyright:           $PROGCOPYRIGHT"
+	echo "  Year of broadcast:   $PROGBCASTYEAR"	
+	echo
+	echo "  Full Episode Title:  $PROGEPISODEFULL"
+	echo "  Short Episode Title: $PROGEPISODE"
+	echo "  Episode Number:      $PROGEPISODENUM"
+	echo
+	echo "  One-off Show:        $PROGONEOFF"
+	echo
+	echo "  Parental Advisory:   $PROGADVISORY"
+	echo "  Genre List:          $PROGGENRES"
+	echo "  iTunes Genre:        $PROGGENRE"
+	echo
+	echo "  Full Description:    $PROGLDES"
+	echo
+	echo "  Short Description:   $PROGDESC"
+	echo
+	echo "Technical:"
+	echo
+	echo "  Encoder: $PROGENCTOOL"
+	echo "  CABAC:   $PROGCABAC"
+	echo "  HD:      $PROGHD ("$PROGDEF")"
+	echo "  X:       $PROGXRES"
+	echo "  Y:       $PROGYRES"
+	echo
+	
+}
+
+reencode() {
+	
+	### We need to see if the file will play on an Apple TV and re-encode it if it won't.
+
+	if [[ "$PROGPLUGIN" == "tv" ]]; then
+
+		if [[ "$PROGCABAC" == "Yes" || "$PROGYRES" -ge 720 ]]; then
+
+			PROGFRAMES=`$MEDIAINFO $IITMP/$1 | grep ReFrames | awk -F\:\  {'print $2'} | awk -F\ frames {'print $1'}`
+
+			if [[ "$PROGFRAMES" -gt "2" ]]; then
+
+				# Determine the crop value for the bottom if the video is greater than 720 pixels in height.
+				if [[ "$PROGYRES" -gt 720 ]]; then
+					PROGYRESDIFF=$(($PROGYRES-720))
+					PROGCROPPING=" --crop 0:$PROGYRESDIFF:0:0"
+					LOGPROGCROP=" ($PROGYRESDIFF pixel lower crop)"
+				fi						
+
+				echo >> $IILOG
+				echo "The episode '$PROGEPISODE' from '$PROGSERIESFULL' is not in a format compatible with the Apple TV." >> $IILOG
+				echo "It has been encoded$LOGPROGHD$LOGPROGRES using CABAC with $PROGFRAMES reference frames." >> $IILOG
+				echo >> $IILOG
+				echo "Beginning re-encoding$LOGPROGCROP at `date  +'%H:%M:%S'` on `date  +'%d %b %Y'`. This will take some time..." >> $IILOG
+				ENCODINGSTARTED=`date +%s`
+
+				# Re-encode the file without CABAC, max size 1280x720, in a 32-bit container. BBC iPlayer content shouldn't be >4GB and AtomicParsley barfs on 64-bit files. :)
+				#  Please see the README file for options used in the past. 
+				#
+				#  This setting works really well, except for some occasional framedrops on complex scenes and a weird stuttering line (occasional) with HandBrake 0.9.6 x86_64. Seems better with HandBrake 0.9.7.
+				$HANDBRAKE -i $IITMP/$1 -o $IITMP/"$PROGPLUGIN"_"$PROGPID"_handbrake.mp4 -e x264 -q 20.0 -a 1,1 -E faac,ac3 -B 160,160 -6 dpl2,auto -R Auto,Auto -D 0.0,0.0 -f mp4$PROGCROPPING -X 1280 -Y 720 --loose-anamorphic -m -x mixed-refs=1:me=hex:b-adapt=2:b-pyramid=none:trellis=0:weightp=0:weightb=0:vbv-maxrate=4800:vbv-bufsize=4800 &>/dev/null
+	
+				ENCODINGFINISHED=`date +%s`
+				ENCODINGDURATION=`dhms $(($ENCODINGFINISHED-$ENCODINGSTARTED))`
+				echo "Re-encoding completed at `date  +'%H:%M:%S'` on `date  +'%d %b %Y'`, taking $ENCODINGDURATION." >> $IILOG
+				echo >> $IILOG
+
+				sleep 3
+
+				# Put the original in the Trash if we're in debug mode, otherwise just destroy it.
+				if [ $DEBUG -eq 1 ]]; then
+					mv $IITMP/$1 /Users/$USER/.Trash/iimport_original_$1
+				else
+					rm $IITMP/$1
+				fi
+
+				# Move our re-encoded file into the limelight.
+				mv $IITMP/"$PROGPLUGIN"_"$PROGPID"_handbrake.mp4 $IITMP/$1
+
+			else
+
+				echo >> $IILOG
+				echo "The episode '$PROGEPISODE' from '$PROGSERIESFULL' is$LOGPROGHD$LOGPROGRES using CABAC with $PROGFRAMES reference frames." >> $IILOG
+				echo "It should be compatible with the Apple TV without having to be re-encoded." >> $IILOG
+				echo >> $IILOG
+
+			fi
+
+		else
+
+			echo >> $IILOG
+			echo "The episode '$PROGEPISODE' from '$PROGSERIESFULL' is$LOGPROGHD$LOGPROGRES without CABAC entropy coding." >> $IILOG
+			echo "We're going to assume that it's compatible with the Apple TV without re-encoding." >> $IILOG
+			echo >> $IILOG
+
+		fi
+	fi
+
+}
+
+tag() {
+	
+	# Finish the tagging...
+
+	# If we're in debug mode, pop the command that tags the file into the user's Trash.
+	if [[ "$DEBUG" == "1" ]]; then
+		echo "$ATOMICPARSLEY $IITMP/"$1" --TVEpisode "$PROGPID" --cnID "$PROGNUMPID" --hdvideo "$PROGHD" --encodingTool "" --encodedBy "$PROGSOURCE" --TVSeasonNum "$PROGSERIESNUM" --TVEpisodeNum "$PROGEPISODENUM" --title "$PROGEPISODE" --TVShowName "$PROGSERIES" --album "$PROGSERIESFULL" --description "$PROGDESC" --longdesc "$PROGLDES" --comment "" $PROGRATING --advisory \"\" --genre "$PROGGENRE" --TVNetwork "$PROGCHANNEL" --grouping "$PROGCHANNEL" --composer "$PROGSOURCE" --copyright "$PROGCOPYRIGHT" --stik "$PROGTYPE" --overWrite" > /Users/$USER/.Trash/meta_$PROGPLUGIN_$PROGPID.sh
+	fi
+
+	# Tag the file with AtomicParsley.
+	echo "Completing metadata tagging..." >> $IILOG
+	[ $DEBUG -eq 1 ] && $ATOMICPARSLEY $IITMP/"$1" --TVEpisode "$PROGPID" --cnID "$PROGNUMPID" --hdvideo "$PROGHD" --encodedBy "$PROGSOURCE" --TVSeasonNum "$PROGSERIESNUM" --TVEpisodeNum "$PROGEPISODENUM" --title "$PROGEPISODE" --TVShowName "$PROGSERIES" --album "$PROGSERIESFULL" --description "$PROGDESC" --longdesc "$PROGLDES" --comment "" $PROGRATING --advisory \"\" --genre "$PROGGENRE" --TVNetwork "$PROGCHANNEL" --grouping "$PROGCHANNEL" --composer "$PROGSOURCE" --copyright "$PROGCOPYRIGHT" --stik "$PROGTYPE" --overWrite
+	[ $DEBUG -lt 1 ] && $ATOMICPARSLEY $IITMP/"$1" --TVEpisode "$PROGPID" --cnID "$PROGNUMPID" --hdvideo "$PROGHD" --encodedBy "$PROGSOURCE" --TVSeasonNum "$PROGSERIESNUM" --TVEpisodeNum "$PROGEPISODENUM" --title "$PROGEPISODE" --TVShowName "$PROGSERIES" --album "$PROGSERIESFULL" --description "$PROGDESC" --longdesc "$PROGLDES" --comment "" $PROGRATING --advisory \"\" --genre "$PROGGENRE" --TVNetwork "$PROGCHANNEL" --grouping "$PROGCHANNEL" --composer "$PROGSOURCE" --copyright "$PROGCOPYRIGHT" --stik "$PROGTYPE" --overWrite &>/dev/null
+
+	echo "Metadata tagging completed." >> $IILOG
+
+}
+
+import() {
+	
+	echo -n "Importing into iTunes... " >> $IILOG
+
+	PROGM4V=`echo $1 | awk -F\. '{print $1}'`
+	mv $IITMP/$1 $IITMP/$PROGM4V.m4v
+	PROGM4V=$PROGM4V.m4v
+	
+	# Make damn sure there are no funny characters in the filename for AppleScript.
+	ITUNESFILE=`echo $IITMP/$PROGM4V | tr -d '\r'`
+	
+	[ $DEBUG -eq 1 ] && echo
+	[ $DEBUG -eq 1 ] && echo -n "Trying to import $ITUNESFILE into iTunes..."
+
+	GOITUNES=`/usr/bin/osascript <<- EOT
+		set progtoImportPath to POSIX file "$ITUNESFILE"
+		tell application "iTunes"
+			add progtoImportPath
+		end tell
+	EOT`
+	
+	[ $DEBUG -eq 1 ] && echo " should be done now."
+
+	echo "done." >> $IILOG
+	
+}
+
+tweet() {
+	
+	if [ $TWEET -eq 1 ]; then
+
+		if [[ "$PROGONEOFF" -gt 0 ]]; then
+			$TTYTTER -status="I've just imported '$PROGSERIESFULL'$LOGPROGHD into iTunes you." &>/dev/null
+		else
+			$TTYTTER -status="I've just imported '$PROGEPISODE' from '$PROGSERIESFULL'$LOGPROGHD into iTunes for you." &>/dev/null
+		fi
+
+	fi
+		
+}
+
+
+
+### Importing
+
+# A normal import triggered by the agent, a completed download, or a manual prod.
+if [[ "$1" == "agent" || "$1" == "download" || "$1" == "" ]]; then
+	
+	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: " >> $IILOG
+	echo Triggered by "$RUNBY". >> $IILOG
+
+	# Create a lockfile so agent requests can't run over us.
+	touch $IITMP/iimport_lock
+
+	for i in `ls -1 /tmp/iimport | grep "\.mp" | grep -v "\.flv"`; do
+
+		NEWFILE=$i
+
+		echo "Found '$NEWFILE'; beginning programme import..." >> $IILOG
+
+		metadata $NEWFILE
+		
+		if [ $DEBUG -eq 1 ]; then
+			echo >> $IILOG
+			printmeta $NEWFILE >> $IILOG
+		fi
+		
+		# If we've fetched a hi-def file, download an SD copy as well for other devices.
+		if [[ "$PROGHD" == "1" ]] && [[ "$PROGNUMPID" != "" ]]; then
+			
+			# But only if we're not refetching to get a HD copy that wasn't available earlier.
+			PROGALREADYSD=`cat /Users/$USER/.get_iplayer/download_history | grep "$PROGPID" | grep "flashvhigh"`
+			
+			if [[ "$PROGALREADYSD" == "" ]]; then	
+				echo >> $IILOG
+				echo "This episode of "$PROGSERIES" is in HD. Fetching SD counterpart..." >> $IILOG
+				/bin/mv $IITMP/$NEWFILE $IITMP/hd"$NEWFILE"
+				CTPRFILE="sd""$NEWFILE"
+				NEWFILE="hd""$NEWFILE"
+				$GETIPLAYER --pid "$PROGPID" --force --tvmode flashvhigh -c "/bin/mv "$IITMP"/"$PROGPLUGIN"_"$PROGPID"_"$PROGSOURCESHRT".mp4 "$IITMP"/"$CTPRFILE"" &>/dev/null &
+			fi
+				
+		fi
+		
+		[ $ATVENC -eq 1 ] && reencode $NEWFILE
+				
+		tag $NEWFILE
+		import $NEWFILE
+		
+		if [[ "$PROGHD" == "1" ]] && [[ "$PROGNUMPID" != "" ]] && [[ "$PROGALREADYSD" == "" ]]; then
+		
+			echo -n "Waiting for SD counterpart..." >> $IILOG
+		
+			while [ ! -f "$IITMP"/"$CTPRFILE" ]
+			do
+				sleep 20
+				echo -n "." >> $IILOG
+			done
+		
+			PROGHD="0"
+			PROGDEF="SD"
+			tag $CTPRFILE
+			import $CTPRFILE
+		
+		fi
+		
+		if [[ "$PROGONEOFF" -gt 0 ]]; then
+			echo "The programme '$PROGSERIESFULL' finished importing at `date  +'%H:%M:%S'` on `date  +'%d %b %Y'`." >> $IILOG
+			echo >> $IILOG
+		else
+			echo "The episode '$PROGEPISODE' of '$PROGSERIESFULL' finished importing at `date  +'%H:%M:%S'` on `date  +'%d %b %Y'`." >> $IILOG
+			echo >> $IILOG
+		fi
+		
+		if [ $DEBUG -ne 1 ]; then
+			rm $IITMP/*"$PROGPID"_"$PROGSOURCESHRT"* &>/dev/null
+		else
+			echo -n "Moving temp files for '$PROGPID' to trash..."
+			mv $IITMP/*"$PROGPID"_"$PROGSOURCESHRT"* /Users/$USER/.Trash/
+			echo " done."
+		fi
+		
+		tweet
+
+	done
+	
+	# Bin the lockfile.
+	rm $IITMP/iimport_lock
+	
+	echo "Import check for $RUNBY has completed." >> $IILOG
+	echo >> $IILOG
+	
+	[ $DEBUG -eq 1 ] && echo "Import complete."
+
+fi
+
+
+### An initial run just fetches a new cache.
+
+if [[ "$1" == "init" ]];
+then
+
+	echo -n "Fetching a new programme cache..." >> $IILOG
+	
+	[ $DEBUG -lt 1 ] && $GETIPLAYER --flush &>/dev/null
+	[ $DEBUG -eq 1 ] && $GETIPLAYER --flush
+	
+	echo " done." >> $IILOG
+	echo >> $IILOG
+
+fi
+
+
+### Run a PVR check, but only for the LaunchAgent or a manual run.
+	
+if [[ "$1" == "agent" || "$1" == "" ]]; then
+
+	echo "Checking online for new content..." >> $IILOG
+	
+	PROGGET=`cat /etc/iimport/trigger 2>/dev/null`
+	
+	if [[ $PROGGET != "" ]]; then
+	
+		echo "Single episode fetch of programme with index #$PROGGET in progress..." >> $IILOG
+		$GETIPLAYER --force --get "$PROGGET" &>/dev/null
+		echo > /etc/iimport/trigger
+
+	else
+	
+		$GETIPLAYER --before 1 --pvr &>/dev/null
+		
+	fi
+	
+	echo "New content check complete." >> $IILOG
+
+fi
+
+
+### Report on activity
+
+if [[ "$1" == "report" ]]; then
+
+	while [ 1 ]
+	do
+
+		if [ ! -f $IITMP/iimport_downloading ]; then
+
+			PARTIALMP4=`ls $IITMP/ | grep iplayer.partial.mp4`
+			if [[ "$PARTIALMP4" != "" ]]; then
+				
+				PARTIALPID=`echo $PARTIALMP4 | awk -F\_ '{print $2}'`
+				PARTIALINFO=`cat /Users/$USER/.get_iplayer/tv.cache | grep $PARTIALPID`
+				PARTIALSERIESFULL=`echo $PARTIALINFO | awk -F\\| '{print $3}'`
+				PARTIALEPISODEFULL=`echo $PARTIALINFO | awk -F\\| '{print $6}'`
+				if [[ "$PARTIALEPISODEFULL" != "-" ]]; then				
+					echo "Started downloading '$PARTIALEPISODEFULL' from '$PARTIALSERIESFULL' at `date  +'%H:%M'` on `date  +'%d %b %Y'`..." >> $IILOG
+					DOWNLOADINGSTARTED=`date +%s`
+				else
+					echo "Started downloading '$PARTIALSERIESFULL' at `date  +'%H:%M'` on `date  +'%d %b %Y'`..." >> $IILOG
+					DOWNLOADINGSTARTED=`date +%s`
+				fi
+				touch $IITMP/iimport_downloading
+			
+			fi
+			
+			sleep 30
+			
+		else
+			
+			PARTIALMP4=`ls $IITMP/ | grep iplayer.partial.mp4`
+			if [[ "$PARTIALMP4" == "" ]]; then
+				
+				DOWNLOADINGFINISHED=`date +%s`
+				DOWNLOADINGDURATION=`dhms $(($DOWNLOADINGFINISHED-$DOWNLOADINGSTARTED))`
+				echo >> $IILOG
+				echo "Download completed at `date  +'%H:%M'` on `date  +'%d %b %Y'`, taking $DOWNLOADINGDURATION." >> $IILOG
+				echo >> $IILOG
+
+				#echo "DEBUG: Binning downloading indicator file."
+				rm $IITMP/iimport_downloading 2>/dev/null
+				
+			fi
+			
+			sleep 2
+
+		fi
+	
+	done
+
+fi
+
+
+exit 0
+
