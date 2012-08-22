@@ -97,7 +97,27 @@ touch $IILOG
 echo >> $IILOG
 [ -d $IITMP ] || mkdir -p $IITMP
 
+# This safely converts alphabetical characters into numbers.
+alphanum() {
+	
+	if [[ "$1" =~ ^[1-9]+$ ]] ; then
+		echo $1
+	else
+		val=`echo $1 | awk '{print tolower($0)}'`
+		val=`printf '%d' "'$val"`
+		val=$(($val-96))
+		if [ $val -lt 1 ] || [ $val -gt 26 ]; then
+			echo "1"
+		else
+			echo $val
+		fi
+	fi
+
+}
+
+# Little time value thingy for logging.
 dhms() {
+	
 	if [ -z $1 ]; then
 		echo "an indeterminate amount of time"
 		return 0
@@ -128,13 +148,11 @@ dhms() {
 		fi
 	fi
 	echo $DAYS $HOURS $MINS $SECS
+	
 }
 
+# Converts any number between 0-200 into a roman numeral.
 roman() {
-
-	# Arabic number to Roman numeral conversion
-	# Range: 0 - 200
-	# It's crude, but it works.
 
 	if [ -z $1 ]; then
 		
@@ -182,9 +200,8 @@ roman() {
 	
 }
 
+# Makes sense of metadata from a presented filename.
 metadata() {
-		
-	### Figure out the common metadata first.
 
 	# Grab the original file metadata before we start toying with it.
 	FILEMETA=`$ATOMICPARSLEY $IITMP/$1 -t`
@@ -260,12 +277,14 @@ metadata() {
 	PROGLDES=`echo $PROGLDES`
 
 	# Process some of the metadata into an iTunes-friendly pieces.
-	PROGSERIESNUM=`echo $PROGINFO | awk -F\\| '{print $7}'`
-	if [[ "$PROGSERIESNUM" -lt "1" ]]; then
-		PROGSERIESNUM="1"
-	fi
 	PROGSERIESFULL=`echo $PROGINFO | awk -F\\| '{print $3}'`
 	PROGSERIES=`echo $PROGSERIESFULL | awk -F\\:\ Series '{print $1}'`
+
+	PROGSERIESNUM=`echo $PROGINFO | awk -F\\| '{print $7}'`
+	if [ "$PROGSERIESNUM" = "" ]; then
+		PROGSERIESNUM=`echo $PROGSERIESFULL | awk -F\\:\ Series\  '{print $2}'`
+		PROGSERIESNUM=`alphanum $PROGSERIESNUM`
+	fi
 
 	PROGEPISODENUM=`echo $PROGINFO | awk -F\\| '{print $8}'`
 	if [[ "$PROGEPISODENUM" -lt "1" ]]; then
@@ -375,6 +394,7 @@ metadata() {
 	
 }
 
+# Spits out metadata.
 printmeta() {
 		
 	echo "$1 metadata:"
@@ -420,10 +440,9 @@ printmeta() {
 	
 }
 
+# See if a file is likely to play on a 1st Generation Apple TV and re-encode it if it won't.
 reencode() {
 	
-	### We need to see if the file will play on an Apple TV and re-encode it if it won't.
-
 	if [[ "$PROGPLUGIN" == "tv" ]]; then
 
 		PROGCABAC=`$MEDIAINFO $IITMP/$1 | grep CABAC | awk -F\:\  {'print $2'}`
@@ -495,9 +514,9 @@ reencode() {
 
 }
 
+# Tag the file using AtomicParsley.
 tag() {
 	
-	# Tag the file using AtomicParsley.
 	echo "Tagging $PROGDEF file "$IITMP"/"$1"..." >> $IILOG
 	
 	[ "$DEBUG" == "1" ] && echo $ATOMICPARSLEY "$IITMP"/"$1" --TVEpisode "$PROGPID" --cnID "$PROGNUMPID" --hdvideo "$PROGHD" --encodedBy "$PROGSOURCE" --TVSeasonNum "$PROGSERIESNUM" --TVEpisodeNum "$PROGEPISODENUM" --title "$PROGEPISODE" --TVShowName "$PROGSERIES" --album "$PROGSERIESFULL" --description "$PROGDESC" --longdesc "$PROGLDES" --comment "" $PROGRATING --advisory \"\" --genre "$PROGGENRE" --TVNetwork "$PROGCHANNEL" --grouping "$PROGCHANNEL" --composer "$PROGSOURCE" --copyright "$PROGCOPYRIGHT" --stik "$PROGTYPE" --overWrite > /Users/$USER/.Trash/meta_$PROGPLUGIN_$PROGPID.sh
@@ -508,6 +527,7 @@ tag() {
 
 }
 
+# Import a directory of files into iTunes.
 import() {
 	
 	# Make an import directory.
@@ -542,6 +562,7 @@ import() {
 	
 }
 
+# Annoy people on Twitter.
 tweet() {
 	
 	if [ $TWEET -eq 1 ]; then
@@ -558,7 +579,7 @@ tweet() {
 
 
 
-### Importing
+### Get Underway!
 
 # A normal import triggered by the agent, a completed download, or a manual prod.
 if [[ "$1" == "agent" || "$1" == "download" || "$1" == "" ]]; then
