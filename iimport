@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# iImport v3.30 (21st August 2012) by Andy Davison
+# iImport v3.30 (22nd August 2012) by Andy Davison
 #  Imports content from get_iplayer into iTunes.
 
 if [ "$1" == "-h" ]; then
@@ -31,17 +31,17 @@ fi
 
 # Do you want to Tweet when something has been imported?
 TWEET=0
+TTYTTER="/usr/local/bin/ttytter"
 # Do you want to re-encode content for the Apple TV (1st Gen)?
 ATVENC=0
+MEDIAINFO="/usr/local/bin/mediainfo"
 # Do you want to fetch SD counterparts to HD content?
 SDFETCH=1
-# Are you debugging the script?
-DEBUG=0
 # Dependency locations...
 GETIPLAYER="/usr/local/bin/get_iplayer"
-MEDIAINFO="/usr/local/bin/mediainfo"
 HANDBRAKE="/usr/local/bin/handbrake"
-TTYTTER="/usr/local/bin/ttytter"
+# Are you debugging the script?
+DEBUG=0
 
 #########################################################################
 
@@ -50,7 +50,6 @@ TTYTTER="/usr/local/bin/ttytter"
 GIOPTS=`cat /Users/$USER/.get_iplayer/options`
 IITMP=`echo "$GIOPTS" | awk -F\output\  {'print $2'}`
 IITMP=`echo $IITMP | tr -d '\r'`
-
 ATOMICPARSLEY=`echo "$GIOPTS" | awk -F\atomicparsley\  {'print $2'}`
 
 # Don't let the log file grow too big.
@@ -362,8 +361,6 @@ metadata() {
 			LOGPROGRES=" at "$PROGXRES"x"$PROGYRES""
 		fi
 
-		PROGCABAC=`$MEDIAINFO $IITMP/$1 | grep CABAC | awk -F\:\  {'print $2'}`
-
 		if [[ "$PROGYRES" -ge 720 ]]; then
 			PROGHD="true"
 			PROGDEF="HD"
@@ -382,7 +379,7 @@ printmeta() {
 		
 	echo "$1 metadata:"
 	echo
-	echo "System:"
+	echo "Technical:"
 	echo
 	echo "  Index:        $PROGINDEX"
 	echo "  Plugin:       $PROGPLUGIN"
@@ -395,6 +392,11 @@ printmeta() {
 	echo "  SPID:    $PROGSHORTPID"
 	echo "  NPID:    $PROGNUMPID"
 	echo
+	echo "  Encoder: $PROGENCTOOL"
+	echo "  HD:      $PROGHD ("$PROGDEF")"
+	echo "  X:       $PROGXRES"
+	echo "  Y:       $PROGYRES"
+	echo
 	echo "Human:"
 	echo
 	echo "  Full Series Title:   $PROGSERIESFULL"	
@@ -406,24 +408,14 @@ printmeta() {
 	echo "  Full Episode Title:  $PROGEPISODEFULL"
 	echo "  Short Episode Title: $PROGEPISODE"
 	echo "  Episode Number:      $PROGEPISODENUM"
-	echo
 	echo "  One-off Show:        $PROGONEOFF"
 	echo
-	echo "  Parental Advisory:   $PROGADVISORY"
 	echo "  Genre List:          $PROGGENRES"
 	echo "  iTunes Genre:        $PROGGENRE"
+	echo "  Parental Advisory:   $PROGADVISORY"
 	echo
 	echo "  Full Description:    $PROGLDES"
-	echo
 	echo "  Short Description:   $PROGDESC"
-	echo
-	echo "Technical:"
-	echo
-	echo "  Encoder: $PROGENCTOOL"
-	echo "  CABAC:   $PROGCABAC"
-	echo "  HD:      $PROGHD ("$PROGDEF")"
-	echo "  X:       $PROGXRES"
-	echo "  Y:       $PROGYRES"
 	echo
 	
 }
@@ -433,6 +425,8 @@ reencode() {
 	### We need to see if the file will play on an Apple TV and re-encode it if it won't.
 
 	if [[ "$PROGPLUGIN" == "tv" ]]; then
+
+		PROGCABAC=`$MEDIAINFO $IITMP/$1 | grep CABAC | awk -F\:\  {'print $2'}`
 
 		if [[ "$PROGCABAC" == "Yes" || "$PROGYRES" -ge 720 ]]; then
 
@@ -451,13 +445,13 @@ reencode() {
 				echo "The episode '$PROGEPISODE' from '$PROGSERIESFULL' is not in a format compatible with the Apple TV." >> $IILOG
 				echo "It has been encoded$LOGPROGHD$LOGPROGRES using CABAC with $PROGFRAMES reference frames." >> $IILOG
 				echo >> $IILOG
-				echo "Beginning re-encoding$LOGPROGCROP at `date  +'%H:%M:%S'` on `date  +'%d %b %Y'`. This will take some time..." >> $IILOG
+				echo "Beginning re-encoding$LOGPROGCROP at `date  +'%H:%M:%S'` on `date  +'%d %b %Y'`. This may take some time..." >> $IILOG
 				ENCODINGSTARTED=`date +%s`
 
 				# Re-encode the file without CABAC, max size 1280x720, in a 32-bit container. BBC iPlayer content shouldn't be >4GB and AtomicParsley barfs on 64-bit files. :)
 				#  Please see the README file for options used in the past. 
 				#
-				#  This setting works really well, except for some occasional framedrops on complex scenes and a weird stuttering line (occasional) with HandBrake 0.9.6 x86_64. Seems better with HandBrake 0.9.7.
+				#  This setting works really well, except for some occasional framedrops on complex scenes (usually water). Seems better with HandBrake 0.9.8.
 				$HANDBRAKE -i $IITMP/$1 -o $IITMP/"$PROGPLUGIN"_"$PROGPID"_handbrake.mp4 -e x264 -q 20.0 -a 1,1 -E faac,ac3 -B 160,160 -6 dpl2,auto -R Auto,Auto -D 0.0,0.0 -f mp4$PROGCROPPING -X 1280 -Y 720 --loose-anamorphic -m -x mixed-refs=1:me=hex:b-adapt=2:b-pyramid=none:trellis=0:weightp=0:weightb=0:vbv-maxrate=4800:vbv-bufsize=4800 &>/dev/null
 	
 				ENCODINGFINISHED=`date +%s`
@@ -468,7 +462,7 @@ reencode() {
 				sleep 3
 
 				# Put the original in the Trash if we're in debug mode, otherwise just destroy it.
-				if [ $DEBUG -eq 1 ]]; then
+				if [ $DEBUG -eq 1 ]; then
 					mv $IITMP/$1 /Users/$USER/.Trash/iimport_original_$1
 				else
 					rm $IITMP/$1
@@ -476,6 +470,9 @@ reencode() {
 
 				# Move our re-encoded file into the limelight.
 				mv $IITMP/"$PROGPLUGIN"_"$PROGPID"_handbrake.mp4 $IITMP/$1
+				
+				# Tweak the encoding source name.
+				PROGSOURCE="iImport for $PROGSOURCE"
 
 			else
 
@@ -500,46 +497,48 @@ reencode() {
 
 tag() {
 	
-	# Finish the tagging...
+	# Tag the file using AtomicParsley.
+	echo "Tagging $PROGDEF file "$IITMP"/"$1"..." >> $IILOG
+	
+	[ "$DEBUG" == "1" ] && echo $ATOMICPARSLEY "$IITMP"/"$1" --TVEpisode "$PROGPID" --cnID "$PROGNUMPID" --hdvideo "$PROGHD" --encodedBy "$PROGSOURCE" --TVSeasonNum "$PROGSERIESNUM" --TVEpisodeNum "$PROGEPISODENUM" --title "$PROGEPISODE" --TVShowName "$PROGSERIES" --album "$PROGSERIESFULL" --description "$PROGDESC" --longdesc "$PROGLDES" --comment "" $PROGRATING --advisory \"\" --genre "$PROGGENRE" --TVNetwork "$PROGCHANNEL" --grouping "$PROGCHANNEL" --composer "$PROGSOURCE" --copyright "$PROGCOPYRIGHT" --stik "$PROGTYPE" --overWrite > /Users/$USER/.Trash/meta_$PROGPLUGIN_$PROGPID.sh
 
-	# If we're in debug mode, pop the command that tags the file into the user's Trash.
-	if [[ "$DEBUG" == "1" ]]; then
-		echo "$ATOMICPARSLEY $IITMP/"$1" --TVEpisode "$PROGPID" --cnID "$PROGNUMPID" --hdvideo "$PROGHD" --encodingTool "" --encodedBy "$PROGSOURCE" --TVSeasonNum "$PROGSERIESNUM" --TVEpisodeNum "$PROGEPISODENUM" --title "$PROGEPISODE" --TVShowName "$PROGSERIES" --album "$PROGSERIESFULL" --description "$PROGDESC" --longdesc "$PROGLDES" --comment "" $PROGRATING --advisory \"\" --genre "$PROGGENRE" --TVNetwork "$PROGCHANNEL" --grouping "$PROGCHANNEL" --composer "$PROGSOURCE" --copyright "$PROGCOPYRIGHT" --stik "$PROGTYPE" --overWrite" > /Users/$USER/.Trash/meta_$PROGPLUGIN_$PROGPID.sh
-	fi
+	$ATOMICPARSLEY "$IITMP"/"$1" --TVEpisode "$PROGPID" --cnID "$PROGNUMPID" --hdvideo "$PROGHD" --encodedBy "$PROGSOURCE" --TVSeasonNum "$PROGSERIESNUM" --TVEpisodeNum "$PROGEPISODENUM" --title "$PROGEPISODE" --TVShowName "$PROGSERIES" --album "$PROGSERIESFULL" --description "$PROGDESC" --longdesc "$PROGLDES" --comment "" $PROGRATING --advisory \"\" --genre "$PROGGENRE" --TVNetwork "$PROGCHANNEL" --grouping "$PROGCHANNEL" --composer "$PROGSOURCE" --copyright "$PROGCOPYRIGHT" --stik "$PROGTYPE" --overWrite &>/dev/null
 
-	# Tag the file with AtomicParsley.
-	echo "Completing metadata tagging..." >> $IILOG
-	[ $DEBUG -eq 1 ] && $ATOMICPARSLEY $IITMP/"$1" --TVEpisode "$PROGPID" --cnID "$PROGNUMPID" --hdvideo "$PROGHD" --encodedBy "$PROGSOURCE" --TVSeasonNum "$PROGSERIESNUM" --TVEpisodeNum "$PROGEPISODENUM" --title "$PROGEPISODE" --TVShowName "$PROGSERIES" --album "$PROGSERIESFULL" --description "$PROGDESC" --longdesc "$PROGLDES" --comment "" $PROGRATING --advisory \"\" --genre "$PROGGENRE" --TVNetwork "$PROGCHANNEL" --grouping "$PROGCHANNEL" --composer "$PROGSOURCE" --copyright "$PROGCOPYRIGHT" --stik "$PROGTYPE" --overWrite
-	[ $DEBUG -lt 1 ] && $ATOMICPARSLEY $IITMP/"$1" --TVEpisode "$PROGPID" --cnID "$PROGNUMPID" --hdvideo "$PROGHD" --encodedBy "$PROGSOURCE" --TVSeasonNum "$PROGSERIESNUM" --TVEpisodeNum "$PROGEPISODENUM" --title "$PROGEPISODE" --TVShowName "$PROGSERIES" --album "$PROGSERIESFULL" --description "$PROGDESC" --longdesc "$PROGLDES" --comment "" $PROGRATING --advisory \"\" --genre "$PROGGENRE" --TVNetwork "$PROGCHANNEL" --grouping "$PROGCHANNEL" --composer "$PROGSOURCE" --copyright "$PROGCOPYRIGHT" --stik "$PROGTYPE" --overWrite &>/dev/null
-
-	echo "Metadata tagging completed." >> $IILOG
+	echo "Tagging of "$IITMP"/"$1" completed." >> $IILOG
 
 }
 
 import() {
 	
-	echo -n "Importing into iTunes... " >> $IILOG
+	# Make an import directory.
+	IIGO="`date +'%y%m%d-%H%M%S'`"
+	[ ! -e $IITMP/$IIGO ] && mkdir $IITMP/$IIGO
 
-	PROGM4V=`echo $1 | awk -F\. '{print $1}'`
-	mv $IITMP/$1 $IITMP/$PROGM4V.m4v
-	PROGM4V=$PROGM4V.m4v
-	
-	# Make damn sure there are no funny characters in the filename for AppleScript.
-	ITUNESFILE=`echo $IITMP/$PROGM4V | tr -d '\r'`
-	
-	[ $DEBUG -eq 1 ] && echo
-	[ $DEBUG -eq 1 ] && echo -n "Trying to import $ITUNESFILE into iTunes..."
+	# Shift files that are ready into the import directory.
+	for i in `ls -1 $IITMP | grep "\.mp4" | grep -v "\.flv" | grep -v "\.partial"`; do
+		PROGM4V=`echo $i | awk -F\. '{print $1}'`
+		mv $IITMP/$i $IITMP/$IIGO/$PROGM4V.m4v
+		PROGM4V=$PROGM4V.m4v
+	done
+
+	# Import the whole directory (iTunes 10.6.3 seems fussy and wants both SD and HD files simultaneously).
+	echo >> $IILOG
+	echo -n "Importing the contents of $IITMP/$IIGO into iTunes..." >> $IILOG
 
 	GOITUNES=`/usr/bin/osascript <<- EOT
-		set progtoImportPath to POSIX file "$ITUNESFILE"
+		set progtoImportPath to POSIX file "$IITMP/$IIGO"
 		tell application "iTunes"
 			add progtoImportPath
 		end tell
 	EOT`
-	
-	[ $DEBUG -eq 1 ] && echo " should be done now."
 
-	echo "done." >> $IILOG
+	echo " done."  >> $IILOG
+
+	if [ $DEBUG -eq 1 ]; then
+		mv $IITMP/$IIGO $IITMP/$IIGO-deleted
+	else
+		rm -rf $IITMP/$IIGO
+	fi
 	
 }
 
@@ -581,31 +580,43 @@ if [[ "$1" == "agent" || "$1" == "download" || "$1" == "" ]]; then
 		if [ $DEBUG -eq 1 ]; then
 			echo >> $IILOG
 			printmeta $NEWFILE >> $IILOG
+			echo >> $IILOG
+			echo "Determining whether to fetch SD copy:" >> $IILOG
+			echo >> $IILOG
+			echo "  SDFETCH = $SDFETCH" >> $IILOG
+			echo "  PROGDEF = $PROGDEF" >> $IILOG
+			echo "  PROGNUMPID = $PROGNUMPID" >> $IILOG
+			echo >> $IILOG
 		fi
 		
 		# If we've fetched a hi-def file, download an SD copy as well for other devices.
 		if [ $SDFETCH -eq 1 ] && [ "$PROGDEF" = "HD" ] && [ "$PROGNUMPID" != "" ]; then
 			
-			# But only if we're not refetching to get a HD copy that wasn't available earlier.
+			# But check whether we've already fetched it (sometimes SD and HD are not both available immediately).
 			PROGALREADYSD=`cat /Users/$USER/.get_iplayer/download_history | grep "$PROGPID" | grep "flashvhigh"`
 			
 			if [ "$PROGALREADYSD" = "" ]; then	
 				echo >> $IILOG
-				echo "Fetching SD counterpart..." >> $IILOG
+				echo "Triggered background fetch of SD counterpart." >> $IILOG
+				echo >> $IILOG
 				/bin/mv $IITMP/$NEWFILE $IITMP/hd"$NEWFILE"
 				CTPRFILE="sd""$NEWFILE"
 				NEWFILE="hd""$NEWFILE"
 				$GETIPLAYER --pid "$PROGPID" --force --tvmode flashvhigh -c "/bin/mv "$IITMP"/"$PROGPLUGIN"_"$PROGPID"_"$PROGSOURCESHRT".mp4 "$IITMP"/"$CTPRFILE"" &>/dev/null &
+			else
+				echo >> $IILOG
+				echo "According to the download history, the SD version of '$PROGPID' has already been fetched." >> $IILOG
+				echo >> $IILOG
 			fi
 				
 		fi
 		
+		# Do the Apple TV magic if required.
 		[ $ATVENC -eq 1 ] && reencode $NEWFILE
 				
 		tag $NEWFILE
-		import $NEWFILE
 		
-		if [ "$PROGHD" = "true" ] && [ "$PROGNUMPID" != "" ] && [ "$PROGALREADYSD" = "" ]; then
+		if [ "$PROGDEF" = "HD" ] && [ "$PROGNUMPID" != "" ] && [ "$PROGALREADYSD" = "" ]; then
 		
 			echo -n "Waiting for SD counterpart..." >> $IILOG
 		
@@ -614,35 +625,31 @@ if [[ "$1" == "agent" || "$1" == "download" || "$1" == "" ]]; then
 				sleep 20
 				echo -n "." >> $IILOG
 			done
+			
+			[ -f "$IITMP"/"$CTPRFILE" ] && echo " ready!" >> $IILOG
 		
-			PROGHD="0"
+			# We've already prepped the HD copy, so tweak those values only and apply to the counterpart.
+			PROGHD="false"
 			PROGDEF="SD"
 			tag $CTPRFILE
-			import $CTPRFILE
 		
 		fi
+		
+		import
 		
 		# Logging info.
 		if [[ "$PROGONEOFF" -gt 0 ]]; then
+			echo >> $IILOG
 			echo "The programme '$PROGSERIESFULL' finished importing at `date  +'%H:%M:%S'` on `date  +'%d %b %Y'`." >> $IILOG
 			echo >> $IILOG
 		else
-			echo "The $PROGDEF episode '$PROGEPISODE' of '$PROGSERIESFULL' finished importing at `date  +'%H:%M:%S'` on `date  +'%d %b %Y'`." >> $IILOG
+			echo >> $IILOG
+			echo "The episode '$PROGEPISODE' of '$PROGSERIESFULL' finished importing at `date  +'%H:%M:%S'` on `date  +'%d %b %Y'`." >> $IILOG
 			echo >> $IILOG
 		fi
 		
-		echo $NEWFILE
-		
-		# Delete the copy we've been playing with.
-		if [ $DEBUG -ne 1 ]; then
-			echo Removing
-			rm $NEWFILE &>/dev/null
-		else
-			echo Moving
-			echo -n "Moving temp files for '$PROGPID' to trash..."
-			mv $NEWFILE /Users/$USER/.Trash/
-			echo " done."
-		fi
+		# Delete any remaining cruft (there shouldn't be any, but you never know).
+		rm $IITMP/*"$PROGPID"_"$PROGSOURCESHRT"* &>/dev/null
 		
 		tweet
 
@@ -654,7 +661,7 @@ if [[ "$1" == "agent" || "$1" == "download" || "$1" == "" ]]; then
 	echo "Import check for $RUNBY has completed." >> $IILOG
 	echo >> $IILOG
 	
-	[ $DEBUG -eq 1 ] && echo "Import complete."
+	[ $DEBUG -eq 1 ] && echo "Finished."
 
 fi
 
