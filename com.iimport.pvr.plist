@@ -10,10 +10,10 @@
 		<string>agent</string>
 	</array>
 	<key>StartInterval</key>
-	<integer>7200</integer>
+	<integer>1200</integer>
 	<key>WatchPaths</key>
 	<array>
-		<string>/etc/iimport/trigger</string>
+		<string>/none/existant/file</string>
 	</array>
 </dict>
 </plist>

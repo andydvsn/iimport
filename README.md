@@ -21,7 +21,13 @@ Dependencies
 
 The iImport scripts employ a number of different streaming, conversion and tagging programs to result in a iTunes-digestible file.
 
+
 ### Essential
+
+- get_iplayer
+
+http://git.infradead.org/get_iplayer.git
+
 - ffmpeg
 
 http://www.evermeet.cx/ffmpeg/
@@ -33,36 +39,70 @@ http://trick77.com/2011/07/30/rtmpdump-2-4-binaries-for-os-x-10-7-lion/
 - atomicparsley
 
 https://github.com/wez/atomicparsley
+
 https://dl.dropbox.com/u/331720/download/atomicparsley.zip (Universal Binary v0.9.4)
 
-- mediainfo
-
-http://mediainfo.sourceforge.net/en/Download/Mac_OS
 
 ### Optional
+
+Only required if you wish to re-encode the download for the 1st Generation Apple TV:
 
 - handbrakeCLI
 
 http://handbrake.fr/downloads2.php
 
-Only required if you wish to re-encode the download for the 1st Generation Apple TV.
+- mediainfo
+
+http://mediainfo.sourceforge.net/en/Download/Mac_OS
+
+
+Only required if you wish to tweet upon a successful import:
+
+- TTYtter
+
+http://www.floodgap.com/software/ttytter/
+
+You will need to configure TTYtter according to it's own instructions before iImport will be able to use it.
+
 
 Installation
 ------------
 
-Install all the bits in the right place and choose the right options. More details to follow. ;)
+By default, the iImport script and the dependencies should live in /usr/local/bin, although this location can easily be changed by modifying the Options section of the script. The installation procedure goes as follows:
+
+1. Install required components into /usr/local/bin and ensure that they have execute permissions.
+2. Run get_iplayer at least once to have it set up appropriate folders, settings and plugins.
+3. Incorporate the contents of the *options* file into your ~/.get_iplayer/options 
+4. Ensure that the 'Copy files to iTunes Media Folder' option in the *Advanced* section of iTunes Preferences is *enabled*.
+
+That should have you up and running. To run iImport automatically at set intervals to fetch content in your PVR list:
+
+1. Copy *com.iimport.pvr.plist* to ~/Library/LaunchAgents
+2. Run 'launchctl load ~/Library/LaunchAgents/com.iimport.pvr.plist' in the Terminal.
+
+iImport will then trigger get_iplayer to perform a fetch, importing any new content, every 20 minutes.
+
+
+How Does It Work?
+-----------------
+
+When called by the LaunchAgent, iImport looks for things to import. Once done, iImport asks get_iplayer to run a PVR fetch for any content that has been available on the iPlayer for an hour or more. The delay is introduced because it sometimes takes a little time for HD content to become available, and by default we always preferentially fetch HD content.
+
+Once a new download has completed, a new instance of iImport is called (as specified in the ~/.get_iplayer/options file) which handles the import. This second instance doesn't bother checking for new content online, but will download an SD copy of a programme if specified (this is off by default). When each  file is fetched they're tagged with appropriate information, then when everything is ready they're bundled into a folder, which is imported by iTunes using a sprinkling of AppleScript. The bundling into a folder makes iTunes happier to pair HD and SD files together for some reason.
+
+In the middle of all this, if specified, the script will call on mediainfo to determine whether the file will play on a 1st Generation Apple TV. If it thinks it won't (most HD content doesn't), it calls on handbrake to re-encode the 720p content into a format that the Apple TV can cope with. This is a little irritating, but the resulting files are still very good quality indeed.
 
 
 Configuration
 -------------
 
-From v3.30, most options are taken directly from the ~/.get_iplayer/options file.  
+The locations of the output directory that get_iplayer uses and the location of AtomicParsley are both taken from the ~/.get_iplayer/options file. Everything esle is configured in the Options section of the script itself. It's all annotated and very self-explanatory, so take a peek.
 
 
 Compression Options
 -------------------
 
-There have been a few different compression options for the Apple TV employed. The current options are as follows:
+There have been a few different compression options for the Apple TV employed. This is how we've ended up where we are:
 
 1. This setting sort of works, but there's stuttering on fade-in and fade-out and some slightly iffy slow panning.
 
@@ -80,11 +120,3 @@ There have been a few different compression options for the Apple TV employed. T
 
 /usr/local/bin/handbrake -i $IITMP/$1 -o $IITMP/"$PROGPLUGIN"_"$PROGPID"_handbrake.mp4 -e x264 -q 20.0 -a 1,1 -E faac,ac3 -B 160,160 -6 dpl2,auto -R Auto,Auto -D 0.0,0.0 -f mp4$PROGCROPPING -X 1280 -Y 720 --loose-anamorphic -m -x mixed-refs=1:me=hex:b-adapt=2:b-pyramid=none:trellis=0:weightp=0:weightb=0:vbv-maxrate=4800:vbv-bufsize=4800 &>/dev/null
 
-
-
-How Does It Work?
------------------
-
-The scripts examine downloaded files and identify them from the programme ID (PID) added to their filename. The PID is then used to extract additional metadata from the get_iplayer cache, which is applied to the file in a way that will make the most sense to iTunes. The file is then imported into iTunes in the background.
-
-This is achieved using bash shell scripting and smidge of AppleScript.

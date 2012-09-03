@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# iImport v3.30 (22nd August 2012) by Andy Davison
+# iImport v3.30 (3rd September 2012) by Andy Davison
 #  Imports content from get_iplayer into iTunes.
 
 if [ "$1" == "-h" ]; then
@@ -35,11 +35,11 @@ TTYTTER="/usr/local/bin/ttytter"
 # Do you want to re-encode content for the Apple TV (1st Gen)?
 ATVENC=0
 MEDIAINFO="/usr/local/bin/mediainfo"
+HANDBRAKE="/usr/local/bin/handbrake"
 # Do you want to fetch SD counterparts to HD content?
-SDFETCH=1
+SDFETCH=0
 # Dependency locations...
 GETIPLAYER="/usr/local/bin/get_iplayer"
-HANDBRAKE="/usr/local/bin/handbrake"
 # Are you debugging the script?
 DEBUG=0
 
@@ -100,7 +100,7 @@ echo >> $IILOG
 # This safely converts alphabetical characters into numbers.
 alphanum() {
 	
-	if [[ "$1" =~ ^[1-9]+$ ]] ; then
+	if [[ "$1" =~ ^[0-9]+$ ]] ; then
 		echo $1
 	else
 		val=`echo $1 | awk '{print tolower($0)}'`
@@ -276,7 +276,7 @@ metadata() {
 	PROGLDES=`echo "$FILEMETA" | awk -F\lyr\"\ contains\:\  {'print $2'}`
 	PROGLDES=`echo $PROGLDES`
 
-	# Process some of the metadata into an iTunes-friendly pieces.
+	# Process some of the metadata into iTunes-friendly pieces.
 	PROGSERIESFULL=`echo $PROGINFO | awk -F\\| '{print $3}'`
 	PROGSERIES=`echo $PROGSERIESFULL | awk -F\\:\ Series '{print $1}'`
 
@@ -611,6 +611,7 @@ if [[ "$1" == "agent" || "$1" == "download" || "$1" == "" ]]; then
 		fi
 		
 		# If we've fetched a hi-def file, download an SD copy as well for other devices.
+		PROGALREADYSD=""
 		if [ $SDFETCH -eq 1 ] && [ "$PROGDEF" = "HD" ] && [ "$PROGNUMPID" != "" ]; then
 			
 			# But check whether we've already fetched it (sometimes SD and HD are not both available immediately).
@@ -637,7 +638,7 @@ if [[ "$1" == "agent" || "$1" == "download" || "$1" == "" ]]; then
 				
 		tag $NEWFILE
 		
-		if [ "$PROGDEF" = "HD" ] && [ "$PROGNUMPID" != "" ] && [ "$PROGALREADYSD" = "" ]; then
+		if [ $SDFETCH -eq 1 ] && [ "$PROGDEF" = "HD" ] && [ "$PROGNUMPID" != "" ] && [ "$PROGALREADYSD" = "" ]; then
 		
 			echo -n "Waiting for SD counterpart..." >> $IILOG
 		
