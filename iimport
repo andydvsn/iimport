@@ -280,10 +280,17 @@ metadata() {
 	PROGSERIESFULL=`echo $PROGINFO | awk -F\\| '{print $3}'`
 	PROGSERIES=`echo $PROGSERIESFULL | awk -F\\:\ Series '{print $1}'`
 
+	# Try for an official series number, then try to grab it from the full series title.
 	PROGSERIESNUM=`echo $PROGINFO | awk -F\\| '{print $7}'`
 	if [ "$PROGSERIESNUM" = "" ]; then
 		PROGSERIESNUM=`echo $PROGSERIESFULL | awk -F\\:\ Series\  '{print $2}'`
-		PROGSERIESNUM=`alphanum $PROGSERIESNUM`
+		if [ "$PROGSERIESNUM" != "" ]; then
+			# It could be alphabetical - run it through the converter.
+			PROGSERIESNUM=`alphanum $PROGSERIESNUM`
+		else
+			# No official series number, we default to zero.
+			PROGSERIESNUM="0"
+		fi
 	fi
 
 	PROGEPISODENUM=`echo $PROGINFO | awk -F\\| '{print $8}'`
