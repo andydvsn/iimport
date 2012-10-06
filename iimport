@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# iImport v3.30 (3rd September 2012) by Andy Davison
+# iImport v3.31 (6th September 2012) by Andy Davison
 #  Imports content from get_iplayer into iTunes.
 
 if [ "$1" == "-h" ]; then
@@ -33,7 +33,7 @@ fi
 TWEET=0
 TTYTTER="/usr/local/bin/ttytter"
 # Do you want to re-encode content for the Apple TV (1st Gen)?
-ATVENC=0
+ATVENC=1
 MEDIAINFO="/usr/local/bin/mediainfo"
 HANDBRAKE="/usr/local/bin/handbrake"
 # Do you want to fetch SD counterparts to HD content?
@@ -474,7 +474,7 @@ reencode() {
 				echo "Beginning re-encoding$LOGPROGCROP at `date  +'%H:%M:%S'` on `date  +'%d %b %Y'`. This may take some time..." >> $IILOG
 				ENCODINGSTARTED=`date +%s`
 
-				# Re-encode the file without CABAC, max size 1280x720, in a 32-bit container. BBC iPlayer content shouldn't be >4GB and AtomicParsley barfs on 64-bit files. :)
+				# Re-encode the file, max size 1280x720 in a 32-bit container. BBC iPlayer content shouldn't be >4GB and AtomicParsley barfs on 64-bit files. :)
 				#  Please see the README file for options used in the past. 
 				#
 				#  This setting works really well, except for some occasional framedrops on complex scenes (usually water). Seems better with HandBrake 0.9.8.
@@ -526,9 +526,9 @@ tag() {
 	
 	echo "Tagging $PROGDEF file "$IITMP"/"$1"..." >> $IILOG
 	
-	[ "$DEBUG" == "1" ] && echo $ATOMICPARSLEY "$IITMP"/"$1" --TVEpisode "$PROGPID" --cnID "$PROGNUMPID" --hdvideo "$PROGHD" --encodedBy "$PROGSOURCE" --TVSeasonNum "$PROGSERIESNUM" --TVEpisodeNum "$PROGEPISODENUM" --title "$PROGEPISODE" --TVShowName "$PROGSERIES" --album "$PROGSERIESFULL" --description "$PROGDESC" --longdesc "$PROGLDES" --comment "" $PROGRATING --advisory \"\" --genre "$PROGGENRE" --TVNetwork "$PROGCHANNEL" --grouping "$PROGCHANNEL" --composer "$PROGSOURCE" --copyright "$PROGCOPYRIGHT" --stik "$PROGTYPE" --overWrite > /Users/$USER/.Trash/meta_$PROGPLUGIN_$PROGPID.sh
+	[ "$DEBUG" == "1" ] && echo $ATOMICPARSLEY "$IITMP"/"$1" --TVEpisode "$PROGPID" --cnID "$PROGNUMPID" --hdvideo "$PROGHD" --encodedBy "$PROGSOURCE" --TVSeasonNum "$PROGSERIESNUM" --disk "$PROGSERIESNUM" --TVEpisodeNum "$PROGEPISODENUM" --tracknum "$PROGEPISODENUM" --title "$PROGEPISODE" --TVShowName "$PROGSERIES" --album "$PROGSERIESFULL" --description "$PROGDESC" --longdesc "$PROGLDES" --comment "" $PROGRATING --advisory \"\" --genre "$PROGGENRE" --TVNetwork "$PROGCHANNEL" --grouping "$PROGCHANNEL" --composer "$PROGSOURCE" --copyright "$PROGCOPYRIGHT" --stik "$PROGTYPE" --overWrite > /Users/$USER/.Trash/meta_$PROGPLUGIN_$PROGPID.sh
 
-	$ATOMICPARSLEY "$IITMP"/"$1" --TVEpisode "$PROGPID" --cnID "$PROGNUMPID" --hdvideo "$PROGHD" --encodedBy "$PROGSOURCE" --TVSeasonNum "$PROGSERIESNUM" --TVEpisodeNum "$PROGEPISODENUM" --title "$PROGEPISODE" --TVShowName "$PROGSERIES" --album "$PROGSERIESFULL" --description "$PROGDESC" --longdesc "$PROGLDES" --comment "" $PROGRATING --advisory \"\" --genre "$PROGGENRE" --TVNetwork "$PROGCHANNEL" --grouping "$PROGCHANNEL" --composer "$PROGSOURCE" --copyright "$PROGCOPYRIGHT" --stik "$PROGTYPE" --overWrite &>/dev/null
+	$ATOMICPARSLEY "$IITMP"/"$1" --TVEpisode "$PROGPID" --cnID "$PROGNUMPID" --hdvideo "$PROGHD" --encodedBy "$PROGSOURCE" --TVSeasonNum "$PROGSERIESNUM" --disk "$PROGSERIESNUM" --TVEpisodeNum "$PROGEPISODENUM" --tracknum "$PROGEPISODENUM" --title "$PROGEPISODE" --TVShowName "$PROGSERIES" --album "$PROGSERIESFULL" --description "$PROGDESC" --longdesc "$PROGLDES" --comment "" $PROGRATING --advisory \"\" --genre "$PROGGENRE" --TVNetwork "$PROGCHANNEL" --grouping "$PROGCHANNEL" --composer "$PROGSOURCE" --copyright "$PROGCOPYRIGHT" --stik "$PROGTYPE" --overWrite &>/dev/null
 
 	echo "Tagging of "$IITMP"/"$1" completed." >> $IILOG
 
