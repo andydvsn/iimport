@@ -474,12 +474,9 @@ reencode() {
 				echo "Beginning re-encoding$LOGPROGCROP at `date  +'%H:%M:%S'` on `date  +'%d %b %Y'`. This may take some time..." >> $IILOG
 				ENCODINGSTARTED=`date +%s`
 
-				# Re-encode the file, max size 1280x720 in a 32-bit container. BBC iPlayer content shouldn't be >4GB and AtomicParsley barfs on 64-bit files. :)
+				# Re-encode the file, max size 1280x720 in a 32-bit container. This setting is now a minor modification of the handbrake ATV1 default. See handbrake -z for preset settings.
 				#  Please see the README file for options used in the past. 
 				#
-				#  This setting works really well, except for some occasional framedrops on complex scenes (usually water). Seems better with HandBrake 0.9.8.
-				#$HANDBRAKE -i $IITMP/$1 -o $IITMP/"$PROGPLUGIN"_"$PROGPID"_handbrake.mp4 -e x264 -q 20.0 -a 1,1 -E faac,ac3 -B 160,160 -6 dpl2,auto -R Auto,Auto -D 0.0,0.0 -f mp4$PROGCROPPING -X 1280 -Y 720 --loose-anamorphic -m -x mixed-refs=1:me=hex:b-adapt=2:b-pyramid=none:trellis=0:weightp=0:weightb=0:vbv-maxrate=4800:vbv-bufsize=4800 &>/dev/null
-	
 				$HANDBRAKE -i $IITMP/$1 -o $IITMP/"$PROGPLUGIN"_"$PROGPID"_handbrake.mp4 -e x264 -q 20.0 -a 1,1 -E faac,copy:ac3 -B 160,160 -6 dpl2,auto -R Auto,Auto -D 0.0,0.0 -f mp4$PROGCROPPING -X 1280 -Y 720 --loose-anamorphic -m -x cabac=0:ref=2:me=umh:b-pyramid=none:b-adapt=2:weightb=0:trellis=0:weightp=0:vbv-maxrate=9500:vbv-bufsize=9500
 	
 				ENCODINGFINISHED=`date +%s`

@@ -1,4 +1,4 @@
-iImport v3.30
+iImport v3.31
 =============
 
 iImport is a script that automatically imports video content fetched by get_iplayer into iTunes, optionally re-compressing it with Handbrake for compatibility with the 1st Generation Apple TV. The script is designed to run on Mac OS X v10.6.8 or higher.
@@ -119,4 +119,9 @@ There have been a few different compression options for the Apple TV employed. T
 4. ...but then decided against it as apparently this might be to do with a weighted b-frames bug. Trying again without (not tested the umh setting above yet). This setting works really well, except for some occasional framedrops on complex scenes and a weird stuttering line (occasional) with HandBrake svn4276 (2011100901).
 
 /usr/local/bin/handbrake -i $IITMP/$1 -o $IITMP/"$PROGPLUGIN"_"$PROGPID"_handbrake.mp4 -e x264 -q 20.0 -a 1,1 -E faac,ac3 -B 160,160 -6 dpl2,auto -R Auto,Auto -D 0.0,0.0 -f mp4$PROGCROPPING -X 1280 -Y 720 --loose-anamorphic -m -x mixed-refs=1:me=hex:b-adapt=2:b-pyramid=none:trellis=0:weightp=0:weightb=0:vbv-maxrate=4800:vbv-bufsize=4800 &>/dev/null
+
+5.  This setting worked really well, except for some occasional framedrops on complex scenes (usually water). Seemed better with HandBrake 0.9.8, but then a corrupt line started appearing on some HD content. This has now been dropped for the Handbrake recommended ATV1 preset, with minor changes for resolution size and container format.
+
+/usr/local/bin/handbrake -i $IITMP/$1 -o $IITMP/"$PROGPLUGIN"_"$PROGPID"_handbrake.mp4 -e x264 -q 20.0 -a 1,1 -E faac,ac3 -B 160,160 -6 dpl2,auto -R Auto,Auto -D 0.0,0.0 -f mp4$PROGCROPPING -X 1280 -Y 720 --loose-anamorphic -m -x mixed-refs=1:me=hex:b-adapt=2:b-pyramid=none:trellis=0:weightp=0:weightb=0:vbv-maxrate=4800:vbv-bufsize=4800 &>/dev/null
+
 
