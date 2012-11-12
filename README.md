@@ -32,6 +32,10 @@ http://git.infradead.org/get_iplayer.git
 
 http://www.evermeet.cx/ffmpeg/
 
+I had some audio sync issues with the most recent versions of FFMPEG (on the Apple TV, not on my Mac). Using an older version worked perfectly. Weird.
+
+https://dl.dropbox.com/u/331720/download/ffmpeg-r19400.zip
+
 - rtmpdump
 
 http://trick77.com/2011/07/30/rtmpdump-2-4-binaries-for-os-x-10-7-lion/

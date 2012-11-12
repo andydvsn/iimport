@@ -33,7 +33,7 @@ fi
 TWEET=0
 TTYTTER="/usr/local/bin/ttytter"
 # Do you want to re-encode content for the Apple TV (1st Gen)?
-ATVENC=1
+ATVENC=0
 MEDIAINFO="/usr/local/bin/mediainfo"
 HANDBRAKE="/usr/local/bin/handbrake"
 # Do you want to fetch SD counterparts to HD content?
