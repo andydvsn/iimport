@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# iImport v3.31 (6th September 2012) by Andy Davison
+# iImport v3.32 (22nd May 2013) by Andy Davison
 #  Imports content from get_iplayer into iTunes.
 
 if [ "$1" == "-h" ]; then
@@ -30,7 +30,7 @@ fi
 ### Options #############################################################
 
 # Do you want to Tweet when something has been imported?
-TWEET=0
+TWEET=1
 TTYTTER="/usr/local/bin/ttytter"
 # Do you want to re-encode content for the Apple TV (1st Gen)?
 ATVENC=0
@@ -477,7 +477,7 @@ reencode() {
 				# Re-encode the file, max size 1280x720 in a 32-bit container. This setting is now a minor modification of the handbrake ATV1 default. See handbrake -z for preset settings.
 				#  Please see the README file for options used in the past. 
 				#
-				$HANDBRAKE -i $IITMP/$1 -o $IITMP/"$PROGPLUGIN"_"$PROGPID"_handbrake.mp4 -e x264 -q 20.0 -a 1,1 -E faac,copy:ac3 -B 160,160 -6 dpl2,auto -R Auto,Auto -D 0.0,0.0 -f mp4$PROGCROPPING -X 1280 -Y 720 --loose-anamorphic -m -x cabac=0:ref=2:me=umh:b-pyramid=none:b-adapt=2:weightb=0:trellis=0:weightp=0:vbv-maxrate=9500:vbv-bufsize=9500
+				$HANDBRAKE -i $IITMP/$1 -o $IITMP/"$PROGPLUGIN"_"$PROGPID"_handbrake.mp4 -e x264 -q 20.0 -a 1,1 -E faac,copy:ac3 -B 160,160 -6 dpl2,auto -R Auto,Auto -D 0.0,0.0 -f mp4$PROGCROPPING -X 1280 -Y 720 --loose-anamorphic -m -x cabac=0:ref=2:me=umh:b-pyramid=none:b-adapt=2:weightb=0:trellis=0:weightp=0:vbv-maxrate=9500:vbv-bufsize=9500:level=3.1
 	
 				ENCODINGFINISHED=`date +%s`
 				ENCODINGDURATION=`dhms $(($ENCODINGFINISHED-$ENCODINGSTARTED))`
