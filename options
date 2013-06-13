@@ -1,13 +1,12 @@
 ffmpeg /usr/local/bin/ffmpeg
 flvstreamer /usr/local/bin/rtmpdump
+atomicparsley /usr/local/bin/atomicparsley
 nopurge 1
 output /tmp/iimport
 thumbsize 640
 versionlist default
-atomicparsley /usr/local/bin/atomicparsley
 tvmode flashhd,flashvhigh
 fileprefix <type>_<pid>_iplayer
 type tv
 nocopyright 1
 command /usr/local/bin/iimport download
-rtmptvopts --swfVfy http://www.bbc.co.uk/emp/10player.swf
