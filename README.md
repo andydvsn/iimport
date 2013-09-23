@@ -28,6 +28,10 @@ The iImport scripts employ a number of different streaming, conversion and taggi
 
 http://git.infradead.org/get_iplayer.git
 
+You may need to install HTML::Entities for Perl using:
+
+ sudo cpan HTML::Entities
+
 - ffmpeg
 
 http://www.evermeet.cx/ffmpeg/
