@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# iImport v3.32 (22nd May 2013) by Andy Davison
+# iImport v3.33 (25th October 2013) by Andy Davison
 #  Imports content from get_iplayer into iTunes.
 
 if [ "$1" == "-h" ]; then
@@ -29,17 +29,24 @@ fi
 
 ### Options #############################################################
 
+# Where is your iTunes folder located?
+ITUNESMEDIA="/Users/$USER/Music/iTunes/iTunes Media"
+
 # Do you want to Tweet when something has been imported?
-TWEET=1
+TWEET=0
 TTYTTER="/usr/local/bin/ttytter"
+
 # Do you want to re-encode content for the Apple TV (1st Gen)?
 ATVENC=0
 MEDIAINFO="/usr/local/bin/mediainfo"
 HANDBRAKE="/usr/local/bin/handbrake"
+
 # Do you want to fetch SD counterparts to HD content?
 SDFETCH=0
+
 # Dependency locations...
 GETIPLAYER="/usr/local/bin/get_iplayer"
+
 # Are you debugging the script?
 DEBUG=0
 
@@ -547,18 +554,32 @@ import() {
 		PROGM4V=$PROGM4V.m4v
 	done
 
-	# Import the whole directory (iTunes 10.6.3 seems fussy and wants both SD and HD files simultaneously).
+	# Now the finished files are out of the way, move them to the Automatic Import location or fall back to the AppleScript method.
 	echo >> $IILOG
-	echo -n "Importing the contents of $IITMP/$IIGO into iTunes..." >> $IILOG
 
-	GOITUNES=`/usr/bin/osascript <<- EOT
-		set progtoImportPath to POSIX file "$IITMP/$IIGO"
-		tell application "iTunes"
-			add progtoImportPath
-		end tell
-	EOT`
+	if [ -d "$ITUNESMEDIA/Automatically Add to iTunes.localized" ]; then
+		ITUNESAUTO="Automatically Add to iTunes.localized"
+		IIAUTOGO=1
+	elif [ -d "$ITUNESMEDIA/Automatically Add to iTunes" ]; then
+		ITUNESAUTO="Automatically Add to iTunes"
+		IIAUTOGO=1
+	else
+		IIAUTOGO=0
+	fi
 
-	echo " done."  >> $IILOG
+	if [ $IIAUTOGO -eq 1 ]; then
+		echo "Moving the contents of $IITMP$IIGO into iTunes Automatic Import..." >> $IILOG
+		mv $IITMP/$IIGO/* "$ITUNESMEDIA"/"$ITUNESAUTO" 2>/dev/null
+		echo "Move complete."  >> $IILOG
+	else
+		echo "Asking iTunes to import contents of $IITMP$IIGO..." >> $IILOG
+		GOITUNES=`/usr/bin/osascript <<- EOT
+			set progtoImportPath to POSIX file "$IITMP/$IIGO"
+			tell application "iTunes"
+				add progtoImportPath
+			end tell
+		EOT`
+	fi
 
 	if [ $DEBUG -eq 1 ]; then
 		mv $IITMP/$IIGO $IITMP/$IIGO-deleted
