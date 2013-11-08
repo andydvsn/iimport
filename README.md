@@ -3,17 +3,15 @@ iImport v3.34
 
 iImport is a script that automatically imports video content fetched by get_iplayer into iTunes, optionally re-compressing it with Handbrake for compatibility with the 1st Generation Apple TV. The script is designed to run on Mac OS X v10.6.8 or higher.
 
-Please note that iImport is undergoing some redevelopment work at the moment, so not everything is in a particularly tidy state.
-
 
 Introduction
 ------------
 
 Episode and series names, artwork, descriptions and other metadata are collected or generated and added to the file using a number of third-party metadata editors. The aim is to result in an iTunes-friendly file that will work for a variety of Apple devices; most notably the Apple TV. Additionally, there are two PHP files and a script that can be used to provide a simple web interface.
 
-iImport also includes a re-encoding section, which examines a fetched file and determines whether it is compatible with the (currently first generation only) Apple TV. The file is re-encoded using Handbrake if it is not.
+iImport also includes a re-encoding section, which examines a fetched file and determines whether it is compatible with the original Apple TV. The file is re-encoded using Handbrake if it is not. No re-encoding should be necessary for the 3rd generation Apple TV (1080p capable model). I've never owned a 2nd generation model, so you're on your own with that one!
 
-In essence, this provides a PVR function to iTunes for get_iplayer.
+In essence, the script provides a PVR function to iTunes via get_iplayer.
 
 
 Dependencies
@@ -36,7 +34,7 @@ You may need to install HTML::Entities for Perl using:
 
 http://www.evermeet.cx/ffmpeg/
 
-I had some audio sync issues with the most recent versions of FFMPEG (on the Apple TV, not on my Mac). Using an older version worked perfectly. Weird.
+I had some audio sync issues with the most recent versions of FFMPEG (on the Apple TV, but not on my Mac). Using an older version worked perfectly. Weird.
 
 https://dl.dropbox.com/u/331720/download/ffmpeg-r19400.zip
 
@@ -96,15 +94,15 @@ How Does It Work?
 
 When called by the LaunchAgent, iImport looks for things to import. Once done, iImport asks get_iplayer to run a PVR fetch for any content that has been available on the iPlayer for an hour or more. The delay is introduced because it sometimes takes a little time for HD content to become available, and by default we always preferentially fetch HD content.
 
-Once a new download has completed, a new instance of iImport is called (as specified in the ~/.get_iplayer/options file) which handles the import. This second instance doesn't bother checking for new content online, but will download an SD copy of a programme if specified (this is off by default). When each  file is fetched they're tagged with appropriate information, then when everything is ready they're bundled into a folder, which is imported by iTunes using a sprinkling of AppleScript. The bundling into a folder makes iTunes happier to pair HD and SD files together for some reason.
+Once a new download has completed, a new instance of iImport is called, this time by get_iplayer itself (as specified in the ~/.get_iplayer/options file). This second instance doesn't bother checking for new content, but will download an companion standard-def copy of a programme if specified (this is off by default). When each file is fetched they're tagged with appropriate information, then when everything is ready they're bundled into a folder which is imported by iTunes. The bundling together makes iTunes happier to pair HD and SD files for some reason.
 
-In the middle of all this, if specified, the script will call on mediainfo to determine whether the file will play on a 1st Generation Apple TV. If it thinks it won't (most HD content doesn't), it calls on handbrake to re-encode the 720p content into a format that the Apple TV can cope with. This is a little irritating, but the resulting files are still very good quality indeed.
+In the middle of all this, if specified, the script will call on mediainfo to determine whether the file will play on a 1st Generation Apple TV. If it thinks it won't, it calls on Handbrake to re-encode the 720p content into a format that the Apple TV can cope with. This is a little irritating, but the resulting files are still very good quality indeed.
 
 
 Configuration
 -------------
 
-The locations of the output directory that get_iplayer uses and the location of AtomicParsley are both taken from the ~/.get_iplayer/options file. Everything esle is configured in the Options section of the script itself. It's all annotated and very self-explanatory, so take a peek.
+The locations of the output directory that get_iplayer uses and the location of AtomicParsley are both taken from the ~/.get_iplayer/options file. Everything esle is configured in the Options section of the script itself. It's all annotated, so take a peek.
 
 
 Compression Options
