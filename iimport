@@ -30,7 +30,6 @@ fi
 ### Options #############################################################
 
 # Where is your iTunes folder located?
-#  eg. ITUNESMEDIA="/Volumes/Drobo/Media/iTunes/iTunes Media"
 ITUNESMEDIA="/Users/$USER/Music/iTunes/iTunes Media"
 
 # Do you want to Tweet when something has been imported?
@@ -488,7 +487,7 @@ reencode() {
 
 				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Episode '$PROGEPISODE' from '$PROGSERIESFULL' requires re-encoding for Apple TV." >> $IILOG
 				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Encoded$LOGPROGHD$LOGPROGRES using CABAC with $PROGFRAMES reference frames." >> $IILOG
-				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Beginning re-encoding$LOGPROGCROP at `date  +'%H:%M:%S'` on `date  +'%d %b %Y'`." >> $IILOG
+				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Beginning re-encoding$LOGPROGCROP." >> $IILOG
 				ENCODINGSTARTED=`date +%s`
 
 				# Re-encode the file, max size 1280x720 in a 32-bit container. This setting is now a minor modification of the handbrake ATV1 default. See handbrake -z for preset settings.
@@ -499,7 +498,7 @@ reencode() {
 				ENCODINGFINISHED=`date +%s`
 				ENCODINGDURATION=`dhms $(($ENCODINGFINISHED-$ENCODINGSTARTED))`
 
-				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Re-encoding completed at `date  +'%H:%M:%S'` on `date  +'%d %b %Y'`, taking $ENCODINGDURATION." >> $IILOG
+				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Re-encoding completed in $ENCODINGDURATION." >> $IILOG
 
 				sleep 3
 
@@ -579,7 +578,7 @@ import() {
 
 	else
 
-		echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Telling iTunes to import contents of $IITMP$IIGO." >> $IILOG
+		echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Telling iTunes (via AppleScript) to import contents of $IITMP$IIGO." >> $IILOG
 		GOITUNES=`/usr/bin/osascript <<- EOT
 			set progtoImportPath to POSIX file "$IITMP/$IIGO"
 			tell application "iTunes"
