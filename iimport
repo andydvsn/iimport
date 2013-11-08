@@ -78,7 +78,7 @@ if [[ "$IITMPOLD" != "" ]]; then
 	STALLEDPID=`echo $IITMPOLD | awk -F\_ {'print $2'}`
 
 	echo >> $IILOG
-	echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : WARN : Program with ID '$STALLEDPID' has stalled. Removing files.". >> $IILOG
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : WARN : Program with ID '$STALLEDPID' has stalled. Removing files." >> $IILOG
 
 	while [[ `ps aux | grep -v grep | grep -c rtmpdump` -eq 1 ]]; do
 
@@ -91,7 +91,7 @@ if [[ "$IITMPOLD" != "" ]]; then
 	###### AT THIS POINT WE COULD DO WITH CHECKING THE DOWNLOAD LOG AND REMOVING
 	###### ANY LINE CONTAINING THIS PID, JUST IN CASE IT THINKS THE FETCH WAS A SUCCESS
 
-	echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : WARN : Removal of files completed.". >> $IILOG
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : WARN : Removal of files completed." >> $IILOG
 
 fi
 
