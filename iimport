@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# iImport v3.33 (25th October 2013) by Andy Davison
+# iImport v3.34 (8th November 2013) by Andy Davison
 #  Imports content from get_iplayer into iTunes.
 
 if [ "$1" == "-h" ]; then
@@ -30,6 +30,7 @@ fi
 ### Options #############################################################
 
 # Where is your iTunes folder located?
+#  eg. ITUNESMEDIA="/Volumes/Drobo/Media/iTunes/iTunes Media"
 ITUNESMEDIA="/Users/$USER/Music/iTunes/iTunes Media"
 
 # Do you want to Tweet when something has been imported?
@@ -67,20 +68,33 @@ touch $IILOG
 # Padding settings for Atomic Parsley.
 export AP_PADDING="DEFAULT_PAD=3072:MIN_PAD=3072:MAX_PAD=7168"
 
-# First, check to see if we're already encoding something.
+# Check to see if we're already encoding something.
 if [[ "$1" == "agent" ]] && [ -f $IITMP/iimport_lock ]; then
 	exit 0
 fi
 
-# Second, see how old the files in the temp directory are. If they're more than 24 hours old, delete them.
-IITMPOLD=`find $IITMP -type f -mtime +1`
+# Check for a stalled file. We consider a file not updated in 10 minutes to be stalled.
+IITMPOLD=`find $IITMP -name "*partial.mp4.flv" -type f -maxdepth 1 -mmin +10`
 if [[ "$IITMPOLD" != "" ]]; then
-	killall rtmpdump
-	find $IITMP -type f -mtime +1 -exec rm {} \;
-	killall rtmpdump
+	STALLEDPID=`echo $IITMPOLD | awk -F\_ {'print $2'}`
+
 	echo >> $IILOG
-	echo "Forced removal of stalled files." >> $IILOG
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : STALL : Program with ID '$STALLEDPID' has stalled. Removing files.". >> $IILOG
+
+	while [[ `ps aux | grep -v grep | grep -c rtmpdump` -eq 1 ]]; do
+
+		find $IITMP -name "*partial.mp4.flv" -type f -maxdepth 1 -mmin +10 -exec rm {} \;
+		killall rtmpdump
+		sleep 2
+
+	done
+
+	###### AT THIS POINT WE COULD DO WITH CHECKING THE DOWNLOAD LOG AND REMOVING
+	###### ANY LINE CONTAINING THIS PID, JUST IN CASE IT THINKS THE FETCH WAS A SUCCESS
+
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : STALL : Removal of files completed.". >> $IILOG
 	echo >> $IILOG
+
 fi
 
 # Finally, check to see if we're already doing something processor intensive.
@@ -242,8 +256,7 @@ metadata() {
 	done
 
 	if [[ ${#PROGNUMPID} -gt 10 ]]; then
-		echo >> $IILOG
-		echo "Numeric PID is longer than 10 characters. Cannot be used for cnID." >> $IILOG
+		echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : WARNING : Numeric PID is longer than 10 characters. Cannot be used for cnID." >> $IILOG
 		PROGNUMPID=""
 	fi
 
@@ -385,8 +398,7 @@ metadata() {
 		PROGYRES=`echo $PROGMDLS | awk -F\kMDItemPixelHeight {'print $2'} | awk -F\=\  {'print $2'} | awk -F\\  {'print $1'}`
 
 		if [[ "$PROGXRES" == "" && "$PROGYRES" == "" ]]; then
-			echo >> $IILOG
-			echo "I've had some difficulty determining the resolution of this video. Continuing, but you may want to check the finished file..." >> $IILOG
+			echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : WARNING : Continuing with unidentified video resolution." >> $IILOG
 			LOGPROGRES=""
 		fi
 
@@ -474,11 +486,9 @@ reencode() {
 					LOGPROGCROP=" ($PROGYRESDIFF pixel lower crop)"
 				fi						
 
-				echo >> $IILOG
-				echo "The episode '$PROGEPISODE' from '$PROGSERIESFULL' is not in a format compatible with the Apple TV." >> $IILOG
-				echo "It has been encoded$LOGPROGHD$LOGPROGRES using CABAC with $PROGFRAMES reference frames." >> $IILOG
-				echo >> $IILOG
-				echo "Beginning re-encoding$LOGPROGCROP at `date  +'%H:%M:%S'` on `date  +'%d %b %Y'`. This may take some time..." >> $IILOG
+				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Episode '$PROGEPISODE' from '$PROGSERIESFULL' requires re-encoding for Apple TV." >> $IILOG
+				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Encoded$LOGPROGHD$LOGPROGRES using CABAC with $PROGFRAMES reference frames." >> $IILOG
+				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Beginning re-encoding$LOGPROGCROP at `date  +'%H:%M:%S'` on `date  +'%d %b %Y'`." >> $IILOG
 				ENCODINGSTARTED=`date +%s`
 
 				# Re-encode the file, max size 1280x720 in a 32-bit container. This setting is now a minor modification of the handbrake ATV1 default. See handbrake -z for preset settings.
@@ -488,8 +498,8 @@ reencode() {
 	
 				ENCODINGFINISHED=`date +%s`
 				ENCODINGDURATION=`dhms $(($ENCODINGFINISHED-$ENCODINGSTARTED))`
-				echo "Re-encoding completed at `date  +'%H:%M:%S'` on `date  +'%d %b %Y'`, taking $ENCODINGDURATION." >> $IILOG
-				echo >> $IILOG
+
+				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Re-encoding completed at `date  +'%H:%M:%S'` on `date  +'%d %b %Y'`, taking $ENCODINGDURATION." >> $IILOG
 
 				sleep 3
 
@@ -508,19 +518,15 @@ reencode() {
 
 			else
 
-				echo >> $IILOG
-				echo "The episode '$PROGEPISODE' from '$PROGSERIESFULL' is$LOGPROGHD$LOGPROGRES using CABAC with $PROGFRAMES reference frames." >> $IILOG
-				echo "It should be compatible with the Apple TV without having to be re-encoded." >> $IILOG
-				echo >> $IILOG
+				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Episode '$PROGEPISODE' from '$PROGSERIESFULL' is$LOGPROGHD$LOGPROGRES using CABAC with $PROGFRAMES reference frames." >> $IILOG
+				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : It should be compatible with the Apple TV without having to be re-encoded." >> $IILOG
 
 			fi
 
 		else
 
-			echo >> $IILOG
-			echo "The episode '$PROGEPISODE' from '$PROGSERIESFULL' is$LOGPROGHD$LOGPROGRES without CABAC entropy coding." >> $IILOG
-			echo "We're going to assume that it's compatible with the Apple TV without re-encoding." >> $IILOG
-			echo >> $IILOG
+			echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Episode '$PROGEPISODE' from '$PROGSERIESFULL' is$LOGPROGHD$LOGPROGRES without CABAC entropy coding." >> $IILOG
+			echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : We're going to assume that it's compatible with the Apple TV without re-encoding." >> $IILOG
 
 		fi
 	fi
@@ -529,14 +535,14 @@ reencode() {
 
 # Tag the file using AtomicParsley.
 tag() {
-	
-	echo "Tagging $PROGDEF file "$IITMP"/"$1"..." >> $IILOG
+
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Tagging $PROGDEF file $IITMP/$1." >> $IILOG
 	
 	[ "$DEBUG" == "1" ] && echo $ATOMICPARSLEY "$IITMP"/"$1" --TVEpisode "$PROGPID" --cnID "$PROGNUMPID" --hdvideo "$PROGHD" --encodedBy "$PROGSOURCE" --TVSeasonNum "$PROGSERIESNUM" --disk "$PROGSERIESNUM" --TVEpisodeNum "$PROGEPISODENUM" --tracknum "$PROGEPISODENUM" --title "$PROGEPISODE" --TVShowName "$PROGSERIES" --album "$PROGSERIESFULL" --description "$PROGDESC" --longdesc "$PROGLDES" --comment "" $PROGRATING --advisory \"\" --genre "$PROGGENRE" --TVNetwork "$PROGCHANNEL" --grouping "$PROGCHANNEL" --composer "$PROGSOURCE" --copyright "$PROGCOPYRIGHT" --stik "$PROGTYPE" --overWrite > /Users/$USER/.Trash/meta_$PROGPLUGIN_$PROGPID.sh
 
 	$ATOMICPARSLEY "$IITMP"/"$1" --TVEpisode "$PROGPID" --cnID "$PROGNUMPID" --hdvideo "$PROGHD" --encodedBy "$PROGSOURCE" --TVSeasonNum "$PROGSERIESNUM" --disk "$PROGSERIESNUM" --TVEpisodeNum "$PROGEPISODENUM" --tracknum "$PROGEPISODENUM" --title "$PROGEPISODE" --TVShowName "$PROGSERIES" --album "$PROGSERIESFULL" --description "$PROGDESC" --longdesc "$PROGLDES" --comment "" $PROGRATING --advisory \"\" --genre "$PROGGENRE" --TVNetwork "$PROGCHANNEL" --grouping "$PROGCHANNEL" --composer "$PROGSOURCE" --copyright "$PROGCOPYRIGHT" --stik "$PROGTYPE" --overWrite &>/dev/null
 
-	echo "Tagging of "$IITMP"/"$1" completed." >> $IILOG
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Tagging $IITMP/$1 complete." >> $IILOG
 
 }
 
@@ -555,8 +561,6 @@ import() {
 	done
 
 	# Now the finished files are out of the way, move them to the Automatic Import location or fall back to the AppleScript method.
-	echo >> $IILOG
-
 	if [ -d "$ITUNESMEDIA/Automatically Add to iTunes.localized" ]; then
 		ITUNESAUTO="Automatically Add to iTunes.localized"
 		IIAUTOGO=1
@@ -568,17 +572,21 @@ import() {
 	fi
 
 	if [ $IIAUTOGO -eq 1 ]; then
-		echo "Moving the contents of $IITMP$IIGO into iTunes Automatic Import..." >> $IILOG
+
+		echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Moving contents of $IITMP$IIGO into iTunes Automatic Import." >> $IILOG
 		mv $IITMP/$IIGO/* "$ITUNESMEDIA"/"$ITUNESAUTO" 2>/dev/null
-		echo "Move complete."  >> $IILOG
+		echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Move complete." >> $IILOG
+
 	else
-		echo "Asking iTunes to import contents of $IITMP$IIGO..." >> $IILOG
+
+		echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Telling iTunes to import contents of $IITMP$IIGO." >> $IILOG
 		GOITUNES=`/usr/bin/osascript <<- EOT
 			set progtoImportPath to POSIX file "$IITMP/$IIGO"
 			tell application "iTunes"
 				add progtoImportPath
 			end tell
 		EOT`
+
 	fi
 
 	if [ $DEBUG -eq 1 ]; then
@@ -611,8 +619,7 @@ tweet() {
 # A normal import triggered by the agent, a completed download, or a manual prod.
 if [[ "$1" == "agent" || "$1" == "download" || "$1" == "" ]]; then
 	
-	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: " >> $IILOG
-	echo Triggered by "$RUNBY". >> $IILOG
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Triggered by $RUNBY". >> $IILOG
 
 	# Create a lockfile so agent requests can't run over us.
 	touch $IITMP/iimport_lock
@@ -621,7 +628,7 @@ if [[ "$1" == "agent" || "$1" == "download" || "$1" == "" ]]; then
 
 		NEWFILE=$i
 
-		echo "Found '$NEWFILE'; beginning programme import..." >> $IILOG
+		echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Importing '$NEWFILE'." >> $IILOG
 
 		metadata $NEWFILE
 		
@@ -644,18 +651,18 @@ if [[ "$1" == "agent" || "$1" == "download" || "$1" == "" ]]; then
 			# But check whether we've already fetched it (sometimes SD and HD are not both available immediately).
 			PROGALREADYSD=`cat /Users/$USER/.get_iplayer/download_history | grep "$PROGPID" | grep "flashvhigh"`
 			
-			if [ "$PROGALREADYSD" = "" ]; then	
-				echo >> $IILOG
-				echo "Triggered background fetch of SD counterpart." >> $IILOG
-				echo >> $IILOG
+			if [ "$PROGALREADYSD" = "" ]; then
+
+				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Triggered background fetch of SD counterpart." >> $IILOG
 				/bin/mv $IITMP/$NEWFILE $IITMP/hd"$NEWFILE"
 				CTPRFILE="sd""$NEWFILE"
 				NEWFILE="hd""$NEWFILE"
 				$GETIPLAYER --pid "$PROGPID" --force --tvmode flashvhigh -c "/bin/mv "$IITMP"/"$PROGPLUGIN"_"$PROGPID"_"$PROGSOURCESHRT".mp4 "$IITMP"/"$CTPRFILE"" &>/dev/null &
+
 			else
-				echo >> $IILOG
-				echo "According to the download history, the SD version of '$PROGPID' has already been fetched." >> $IILOG
-				echo >> $IILOG
+
+				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : SD version of '$PROGPID' has already been fetched." >> $IILOG
+
 			fi
 				
 		fi
@@ -666,17 +673,15 @@ if [[ "$1" == "agent" || "$1" == "download" || "$1" == "" ]]; then
 		tag $NEWFILE
 		
 		if [ $SDFETCH -eq 1 ] && [ "$PROGDEF" = "HD" ] && [ "$PROGNUMPID" != "" ] && [ "$PROGALREADYSD" = "" ]; then
-		
-			echo -n "Waiting for SD counterpart..." >> $IILOG
+
+			echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Waiting for SD counterpart." >> $IILOG
 		
 			while [ ! -f "$IITMP"/"$CTPRFILE" ]
 			do
 				sleep 20
 				echo -n "." >> $IILOG
 			done
-			
-			[ -f "$IITMP"/"$CTPRFILE" ] && echo " ready!" >> $IILOG
-		
+					
 			# We've already prepped the HD copy, so tweak those values only and apply to the counterpart.
 			PROGHD="false"
 			PROGDEF="SD"
@@ -688,13 +693,9 @@ if [[ "$1" == "agent" || "$1" == "download" || "$1" == "" ]]; then
 		
 		# Logging info.
 		if [[ "$PROGONEOFF" -gt 0 ]]; then
-			echo >> $IILOG
-			echo "The programme '$PROGSERIESFULL' finished importing at `date  +'%H:%M:%S'` on `date  +'%d %b %Y'`." >> $IILOG
-			echo >> $IILOG
+			echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Programme '$PROGSERIESFULL' finished importing." >> $IILOG
 		else
-			echo >> $IILOG
-			echo "The episode '$PROGEPISODE' of '$PROGSERIESFULL' finished importing at `date  +'%H:%M:%S'` on `date  +'%d %b %Y'`." >> $IILOG
-			echo >> $IILOG
+			echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Episode '$PROGEPISODE' of '$PROGSERIESFULL' finished importing." >> $IILOG
 		fi
 		
 		# Delete any remaining cruft (there shouldn't be any, but you never know).
@@ -706,10 +707,7 @@ if [[ "$1" == "agent" || "$1" == "download" || "$1" == "" ]]; then
 	
 	# Bin the lockfile.
 	rm $IITMP/iimport_lock
-	
-	echo "Import check for $RUNBY has completed." >> $IILOG
-	echo >> $IILOG
-	
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Import check for $RUNBY has completed." >> $IILOG
 	[ $DEBUG -eq 1 ] && echo "Finished."
 
 fi
@@ -720,13 +718,10 @@ fi
 if [[ "$1" == "init" ]];
 then
 
-	echo -n "Fetching a new programme cache..." >> $IILOG
-	
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Fetching a new programme cache." >> $IILOG
+
 	[ $DEBUG -lt 1 ] && $GETIPLAYER --flush &>/dev/null
 	[ $DEBUG -eq 1 ] && $GETIPLAYER --flush
-	
-	echo " done." >> $IILOG
-	echo >> $IILOG
 
 fi
 
@@ -735,13 +730,14 @@ fi
 	
 if [[ "$1" == "agent" || "$1" == "" ]]; then
 
-	echo "Checking online for new content..." >> $IILOG
+
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Checking online for new content." >> $IILOG
 	
 	PROGGET=`cat /etc/iimport/trigger 2>/dev/null`
 	
 	if [[ $PROGGET != "" ]]; then
 	
-		echo "Single episode fetch of programme with index #$PROGGET in progress..." >> $IILOG
+		echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Single episode fetch of programme with index #$PROGGET in progress." >> $IILOG
 		$GETIPLAYER --force --get "$PROGGET" &>/dev/null
 		echo > /etc/iimport/trigger
 
@@ -751,7 +747,7 @@ if [[ "$1" == "agent" || "$1" == "" ]]; then
 		
 	fi
 	
-	echo "New content check complete." >> $IILOG
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : New content check complete." >> $IILOG
 
 fi
 
@@ -772,13 +768,18 @@ if [[ "$1" == "report" ]]; then
 				PARTIALINFO=`cat /Users/$USER/.get_iplayer/tv.cache | grep $PARTIALPID`
 				PARTIALSERIESFULL=`echo $PARTIALINFO | awk -F\\| '{print $3}'`
 				PARTIALEPISODEFULL=`echo $PARTIALINFO | awk -F\\| '{print $6}'`
-				if [[ "$PARTIALEPISODEFULL" != "-" ]]; then				
-					echo "Started downloading '$PARTIALEPISODEFULL' from '$PARTIALSERIESFULL' at `date  +'%H:%M'` on `date  +'%d %b %Y'`..." >> $IILOG
+				if [[ "$PARTIALEPISODEFULL" != "-" ]]; then
+
+					echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Downloading '$PARTIALEPISODEFULL' from '$PARTIALSERIESFULL'." >> $IILOG
 					DOWNLOADINGSTARTED=`date +%s`
+
 				else
-					echo "Started downloading '$PARTIALSERIESFULL' at `date  +'%H:%M'` on `date  +'%d %b %Y'`..." >> $IILOG
+
+					echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Downloading '$PARTIALSERIESFULL'." >> $IILOG
 					DOWNLOADINGSTARTED=`date +%s`
+
 				fi
+
 				touch $IITMP/iimport_downloading
 			
 			fi
@@ -792,9 +793,8 @@ if [[ "$1" == "report" ]]; then
 				
 				DOWNLOADINGFINISHED=`date +%s`
 				DOWNLOADINGDURATION=`dhms $(($DOWNLOADINGFINISHED-$DOWNLOADINGSTARTED))`
-				echo >> $IILOG
-				echo "Download completed at `date  +'%H:%M'` on `date  +'%d %b %Y'`, taking $DOWNLOADINGDURATION." >> $IILOG
-				echo >> $IILOG
+
+				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Download completed in $DOWNLOADINGDURATION." >> $IILOG
 
 				#echo "DEBUG: Binning downloading indicator file."
 				rm $IITMP/iimport_downloading 2>/dev/null
