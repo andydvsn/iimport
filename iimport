@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# iImport v3.34 (8th November 2013) by Andy Davison
+# iImport v3.35 (9th November 2013) by Andy Davison
 #  Imports content from get_iplayer into iTunes.
 
 if [ "$1" == "-h" ]; then
@@ -37,7 +37,7 @@ TWEET=0
 TTYTTER="/usr/local/bin/ttytter"
 
 # Do you want to re-encode content for the Apple TV (1st Gen)?
-ATVENC=0
+ATVENC=1
 MEDIAINFO="/usr/local/bin/mediainfo"
 HANDBRAKE="/usr/local/bin/handbrake"
 
@@ -73,20 +73,27 @@ if [[ "$1" == "agent" ]] && [ -f $IITMP/iimport_lock ]; then
 fi
 
 # Check for a stalled file. We consider a file not updated in 10 minutes to be stalled.
+# NB. This won't affect files held while encoding; if an instance is encoding, we've already exited.
 IITMPOLD=`find $IITMP -name "*partial.mp4.flv" -type f -maxdepth 1 -mmin +10`
 if [[ "$IITMPOLD" != "" ]]; then
 	STALLEDPID=`echo $IITMPOLD | awk -F\_ {'print $2'}`
 
 	echo >> $IILOG
-	echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : WARN : Program with ID '$STALLEDPID' has stalled. Removing files." >> $IILOG
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : WARN : Program with ID '$STALLEDPID' has stalled." >> $IILOG
 
+	KILLCOUNT=1
 	while [[ `ps aux | grep -v grep | grep -c rtmpdump` -eq 1 ]]; do
 
+		echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : WARN : Removing files (attempt $KILLCOUNT)." >> $IILOG
 		find $IITMP -name "*partial.mp4.flv" -type f -maxdepth 1 -mmin +10 -exec rm {} \;
 		killall rtmpdump
-		sleep 2
+		KILLCOUNT+=1
+		sleep 4
 
 	done
+
+	# Make doubly sure that we aren't leaving a partial file after killing rtmpdump.
+	find $IITMP -name "*partial.mp4.flv" -type f -maxdepth 1 -mmin +10 -exec rm {} \;
 
 	###### AT THIS POINT WE COULD DO WITH CHECKING THE DOWNLOAD LOG AND REMOVING
 	###### ANY LINE CONTAINING THIS PID, JUST IN CASE IT THINKS THE FETCH WAS A SUCCESS
