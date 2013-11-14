@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# iImport v3.35 (9th November 2013) by Andy Davison
+# iImport v3.36 (14th November 2013) by Andy Davison
 #  Imports content from get_iplayer into iTunes.
 
 if [ "$1" == "-h" ]; then
@@ -476,23 +476,29 @@ reencode() {
 	
 	if [[ "$PROGPLUGIN" == "tv" ]]; then
 
-		PROGCABAC=`$MEDIAINFO $IITMP/$1 | grep CABAC | awk -F\:\  {'print $2'}`
+		MEDIAINFODUMP=`$MEDIAINFO $IITMP/$1`
+
+		PROGCABAC=`echo "$MEDIAINFODUMP" | grep CABAC | awk -F\:\  {'print $2'}`
 
 		if [[ "$PROGCABAC" == "Yes" || "$PROGYRES" -ge 720 ]]; then
 
-			PROGFRAMES=`$MEDIAINFO $IITMP/$1 | grep ReFrames | awk -F\:\  {'print $2'} | awk -F\ frames {'print $1'}`
+			PROGFRAMES=`echo "$MEDIAINFODUMP" | grep ReFrames | awk -F\:\  {'print $2'} | awk -F\ frames {'print $1'}`
 
-			if [[ "$PROGFRAMES" -gt "2" ]]; then
+			if [[ "$PROGYRES" -ge 720 || "$PROGFRAMES" -gt "2" ]]; then
 
-				# Determine the crop value for the bottom if the video is greater than 720 pixels in height.
+				# Determine the crop value for the bottom if the video is greater than 720 pixels in height (cheeky beeb).
 				if [[ "$PROGYRES" -gt 720 ]]; then
 					PROGYRESDIFF=$(($PROGYRES-720))
 					PROGCROPPING=" --crop 0:$PROGYRESDIFF:0:0"
 					LOGPROGCROP=" ($PROGYRESDIFF pixel lower crop)"
-				fi						
+				fi
 
+				# Parse out some handy little log items.
+				LOGPROGPROFILE=`echo "$MEDIAINFODUMP" | grep "Format profile" | grep "@" | awk -F\:\  {'print $2'}`
+				LOGPROGBITRATE=`echo "$MEDIAINFODUMP" | grep "Overall bit rate" | grep -v "mode" | awk -F\:\  {'print $2'} | tr -d ' '`
+
+				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Encoded$LOGPROGHD$LOGPROGRES ($LOGPROGPROFILE) using CABAC with $PROGFRAMES reference frames ($LOGPROGBITRATE)." >> $IILOG
 				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Episode '$PROGEPISODE' from '$PROGSERIESFULL' requires re-encoding for Apple TV." >> $IILOG
-				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Encoded$LOGPROGHD$LOGPROGRES using CABAC with $PROGFRAMES reference frames." >> $IILOG
 				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Beginning re-encoding$LOGPROGCROP." >> $IILOG
 				ENCODINGSTARTED=`date +%s`
 
@@ -503,8 +509,6 @@ reencode() {
 	
 				ENCODINGFINISHED=`date +%s`
 				ENCODINGDURATION=`dhms $(($ENCODINGFINISHED-$ENCODINGSTARTED))`
-
-				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Re-encoding completed in $ENCODINGDURATION." >> $IILOG
 
 				sleep 3
 
@@ -521,17 +525,27 @@ reencode() {
 				# Tweak the encoding source name.
 				PROGSOURCE="iImport for $PROGSOURCE"
 
+				# Check our new encoding.
+				MEDIAINFODUMP=`$MEDIAINFO $IITMP/$1`
+				LOGPROGPROFILE=`echo "$MEDIAINFODUMP" | grep "Format profile" | grep "@" | awk -F\:\  {'print $2'}`
+				LOGPROGBITRATE=`echo "$MEDIAINFODUMP" | grep "Overall bit rate" | grep -v "mode" | awk -F\:\  {'print $2'} | tr -d ' '`
+
+				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Re-encoding completed in $ENCODINGDURATION." >> $IILOG
+				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Now encoded$LOGPROGHD$LOGPROGRES ($LOGPROGPROFILE) without CABAC entropy coding ($LOGPROGBITRATE)." >> $IILOG
+
 			else
 
-				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Episode '$PROGEPISODE' from '$PROGSERIESFULL' is$LOGPROGHD$LOGPROGRES using CABAC with $PROGFRAMES reference frames." >> $IILOG
-				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : It should be compatible with the Apple TV without having to be re-encoded." >> $IILOG
+				# If it uses CABAC, but is SD and only uses 2 ref frames, we should be okay.
+				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Encoded$LOGPROGHD$LOGPROGRES ($LOGPROGPROFILE) using CABAC with $PROGFRAMES reference frames ($LOGPROGBITRATE)." >> $IILOG
+				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Episode '$PROGEPISODE' from '$PROGSERIESFULL' should already be compatible with the Apple TV." >> $IILOG
 
 			fi
 
 		else
 
-			echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Episode '$PROGEPISODE' from '$PROGSERIESFULL' is$LOGPROGHD$LOGPROGRES without CABAC entropy coding." >> $IILOG
-			echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : We're going to assume that it's compatible with the Apple TV without re-encoding." >> $IILOG
+			# If there's no CABAC on the original and it's SD, we should also be okay.
+			echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Encoded$LOGPROGHD$LOGPROGRES ($LOGPROGPROFILE) without CABAC entropy coding ($LOGPROGBITRATE)." >> $IILOG
+			echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Episode '$PROGEPISODE' from '$PROGSERIESFULL' should already be compatible with the Apple TV." >> $IILOG
 
 		fi
 	fi
