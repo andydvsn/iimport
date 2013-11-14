@@ -490,7 +490,7 @@ reencode() {
 				if [[ "$PROGYRES" -gt 720 ]]; then
 					PROGYRESDIFF=$(($PROGYRES-720))
 					PROGCROPPING=" --crop 0:$PROGYRESDIFF:0:0"
-					LOGPROGCROP=" ($PROGYRESDIFF pixel lower crop)"
+					LOGPROGCROP=" (with $PROGYRESDIFF pixel lower crop)"
 				fi
 
 				# Parse out some handy little log items.
@@ -498,8 +498,7 @@ reencode() {
 				LOGPROGBITRATE=`echo "$MEDIAINFODUMP" | grep "Overall bit rate" | grep -v "mode" | awk -F\:\  {'print $2'} | tr -d ' '`
 
 				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Encoded$LOGPROGHD$LOGPROGRES ($LOGPROGPROFILE) using CABAC with $PROGFRAMES reference frames ($LOGPROGBITRATE)." >> $IILOG
-				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Episode '$PROGEPISODE' from '$PROGSERIESFULL' requires re-encoding for Apple TV." >> $IILOG
-				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Beginning re-encoding$LOGPROGCROP." >> $IILOG
+				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Episode '$PROGEPISODE' from '$PROGSERIESFULL' will be re-encoded for Apple TV$LOGPROGCROP." >> $IILOG
 				ENCODINGSTARTED=`date +%s`
 
 				# Re-encode the file, max size 1280x720 in a 32-bit container. This setting is now a minor modification of the handbrake ATV1 default. See handbrake -z for preset settings.
