@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# iImport v3.36 (14th November 2013) by Andy Davison
+# iImport v3.39 (7th March 2014) by Andy Davison
 #  Imports content from get_iplayer into iTunes.
 
 if [ "$1" == "-h" ]; then
-	echo "./iimport [ agent | download | init | report ]"
+	echo "./iimport [ agent | download | init | report | stallcheck ]"
 	exit 0
 fi
 
@@ -72,9 +72,9 @@ if [[ "$1" == "agent" ]] && [ -f $IITMP/iimport_lock ]; then
 	exit 0
 fi
 
-# Check for a stalled file. We consider a file not updated in 10 minutes to be stalled.
+# Check for a stalled file. We consider a file not updated in 15 minutes to be stalled.
 # NB. This won't affect files held while encoding; if an instance is encoding, we've already exited.
-IITMPOLD=`find $IITMP -name "*partial.mp4.flv" -type f -maxdepth 1 -mmin +10`
+IITMPOLD=`find $IITMP -name "*partial.mp4.flv" -type f -maxdepth 1 -mmin +15`
 if [[ "$IITMPOLD" != "" ]]; then
 	STALLEDPID=`echo $IITMPOLD | awk -F\_ {'print $2'}`
 
@@ -87,19 +87,29 @@ if [[ "$IITMPOLD" != "" ]]; then
 		echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : WARN : Removing files (attempt $KILLCOUNT)." >> $IILOG
 		find $IITMP -name "*partial.mp4.flv" -type f -maxdepth 1 -mmin +10 -exec rm {} \;
 		killall rtmpdump
-		KILLCOUNT+=1
+		KILLCOUNT=$((KILLCOUNT+1))
 		sleep 4
 
 	done
 
 	# Make doubly sure that we aren't leaving a partial file after killing rtmpdump.
-	find $IITMP -name "*partial.mp4.flv" -type f -maxdepth 1 -mmin +10 -exec rm {} \;
+	find $IITMP -name "*partial.mp4.flv" -type f -maxdepth 1 -mmin +15 -exec rm {} \;
 
 	###### AT THIS POINT WE COULD DO WITH CHECKING THE DOWNLOAD LOG AND REMOVING
 	###### ANY LINE CONTAINING THIS PID, JUST IN CASE IT THINKS THE FETCH WAS A SUCCESS
 
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : WARN : Removal of files completed." >> $IILOG
 
+fi
+
+# Halt here if we're only checking for stalled files.
+if [[ "$1" == "stallcheck" ]]; then
+	RDFETCHING=`find $IITMP -name "*partial.mp4.flv"`
+	if [[ "$RDFETCHING" != "" ]]; then
+		[[ $KILLCOUNT ]] && RDFETCHSTATUS="resumed" || RDFETCHSTATUS="in progress"
+		echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Download $RDFETCHSTATUS." >> $IILOG
+	fi
+	exit 0
 fi
 
 # Finally, check to see if we're already doing something processor intensive.
@@ -471,82 +481,66 @@ printmeta() {
 	
 }
 
-# See if a file is likely to play on a 1st Generation Apple TV and re-encode it if it won't.
+# Re-encode for the 1st Generation Apple TV.
 reencode() {
 	
 	if [[ "$PROGPLUGIN" == "tv" ]]; then
 
 		MEDIAINFODUMP=`$MEDIAINFO $IITMP/$1`
-
 		PROGCABAC=`echo "$MEDIAINFODUMP" | grep CABAC | awk -F\:\  {'print $2'}`
+		PROGFRAMES=`echo "$MEDIAINFODUMP" | grep ReFrames | awk -F\:\  {'print $2'} | awk -F\ frames {'print $1'}`
 
-		if [[ "$PROGCABAC" == "Yes" || "$PROGYRES" -ge 720 ]]; then
-
-			PROGFRAMES=`echo "$MEDIAINFODUMP" | grep ReFrames | awk -F\:\  {'print $2'} | awk -F\ frames {'print $1'}`
-
-			if [[ "$PROGYRES" -ge 720 || "$PROGFRAMES" -gt "2" ]]; then
-
-				# Determine the crop value for the bottom if the video is greater than 720 pixels in height (cheeky beeb).
-				if [[ "$PROGYRES" -gt 720 ]]; then
-					PROGYRESDIFF=$(($PROGYRES-720))
-					PROGCROPPING=" --crop 0:$PROGYRESDIFF:0:0"
-					LOGPROGCROP=" (with $PROGYRESDIFF pixel lower crop)"
-				fi
-
-				# Parse out some handy little log items.
-				LOGPROGPROFILE=`echo "$MEDIAINFODUMP" | grep "Format profile" | grep "@" | awk -F\:\  {'print $2'}`
-				LOGPROGBITRATE=`echo "$MEDIAINFODUMP" | grep "Overall bit rate" | grep -v "mode" | awk -F\:\  {'print $2'} | tr -d ' '`
-
-				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Encoded$LOGPROGHD$LOGPROGRES ($LOGPROGPROFILE) using CABAC with $PROGFRAMES reference frames ($LOGPROGBITRATE)." >> $IILOG
-				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Episode '$PROGEPISODE' from '$PROGSERIESFULL' is being re-encoded$LOGPROGCROP for Apple TV..." >> $IILOG
-				ENCODINGSTARTED=`date +%s`
-
-				# Re-encode the file, max size 1280x720 in a 32-bit container. This setting is now a minor modification of the handbrake ATV1 default. See handbrake -z for preset settings.
-				#  Please see the README file for options used in the past. 
-				#
-				$HANDBRAKE -i $IITMP/$1 -o $IITMP/"$PROGPLUGIN"_"$PROGPID"_handbrake.mp4 -e x264 -q 20.0 -a 1,1 -E faac,copy:ac3 -B 160,160 -6 dpl2,auto -R Auto,Auto -D 0.0,0.0 -f mp4$PROGCROPPING -X 1280 -Y 720 --loose-anamorphic -m -x cabac=0:ref=2:me=umh:b-pyramid=none:b-adapt=2:weightb=0:trellis=0:weightp=0:vbv-maxrate=9500:vbv-bufsize=9500:level=3.1
-	
-				ENCODINGFINISHED=`date +%s`
-				ENCODINGDURATION=`dhms $(($ENCODINGFINISHED-$ENCODINGSTARTED))`
-
-				sleep 3
-
-				# Put the original in the Trash if we're in debug mode, otherwise just destroy it.
-				if [ $DEBUG -eq 1 ]; then
-					mv $IITMP/$1 /Users/$USER/.Trash/iimport_original_$1
-				else
-					rm $IITMP/$1
-				fi
-
-				# Move our re-encoded file into the limelight.
-				mv $IITMP/"$PROGPLUGIN"_"$PROGPID"_handbrake.mp4 $IITMP/$1
-				
-				# Tweak the encoding source name.
-				PROGSOURCE="iImport for $PROGSOURCE"
-
-				# Check our new encoding.
-				MEDIAINFODUMP=`$MEDIAINFO $IITMP/$1`
-				LOGPROGPROFILE=`echo "$MEDIAINFODUMP" | grep "Format profile" | grep "@" | awk -F\:\  {'print $2'}`
-				LOGPROGBITRATE=`echo "$MEDIAINFODUMP" | grep "Overall bit rate" | grep -v "mode" | awk -F\:\  {'print $2'} | tr -d ' '`
-
-				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Re-encoding completed in $ENCODINGDURATION." >> $IILOG
-				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Now encoded$LOGPROGHD$LOGPROGRES ($LOGPROGPROFILE) without CABAC entropy coding ($LOGPROGBITRATE)." >> $IILOG
-
-			else
-
-				# If it uses CABAC, but is SD and only uses 2 ref frames, we should be okay.
-				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Encoded$LOGPROGHD$LOGPROGRES ($LOGPROGPROFILE) using CABAC with $PROGFRAMES reference frames ($LOGPROGBITRATE)." >> $IILOG
-				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Episode '$PROGEPISODE' from '$PROGSERIESFULL' should already be compatible with the Apple TV." >> $IILOG
-
-			fi
-
-		else
-
-			# If there's no CABAC on the original and it's SD, we should also be okay.
-			echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Encoded$LOGPROGHD$LOGPROGRES ($LOGPROGPROFILE) without CABAC entropy coding ($LOGPROGBITRATE)." >> $IILOG
-			echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Episode '$PROGEPISODE' from '$PROGSERIESFULL' should already be compatible with the Apple TV." >> $IILOG
-
+		# Determine the crop value for the bottom if the video is greater than 720 pixels in height (cheeky beeb).
+		if [[ "$PROGYRES" -gt 720 ]]; then
+			PROGYRESDIFF=$(($PROGYRES-720))
+			PROGCROPPING=" --crop 0:$PROGYRESDIFF:0:0"
+			LOGPROGCROP=" (with $PROGYRESDIFF pixel lower crop)"
 		fi
+
+		# Parse out some handy little log items.
+		LOGPROGPROFILE=`echo "$MEDIAINFODUMP" | grep "Format profile" | grep "@" | awk -F\:\  {'print $2'}`
+		LOGPROGBITRATE=`echo "$MEDIAINFODUMP" | grep "Overall bit rate" | grep -v "mode" | awk -F\:\  {'print $2'} | tr -d ' '`
+		LOGPROGCABAC=""
+		[[ "$PROGCABAC" == "Yes" ]] && LOGPROGCABAC=" using CABAC"
+
+		# Log it!
+		echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Encoded$LOGPROGHD$LOGPROGRES ($LOGPROGPROFILE)$LOGPROGCABAC with $PROGFRAMES reference frames ($LOGPROGBITRATE)." >> $IILOG
+		echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Episode '$PROGEPISODE' from '$PROGSERIESFULL' is being re-encoded$LOGPROGCROP for Apple TV..." >> $IILOG
+		ENCODINGSTARTED=`date +%s`
+
+		# Re-encode the file, max size 1280x720 in a 32-bit container. This setting is now a minor modification of the handbrake ATV1 default. See handbrake -z for preset settings.
+		#  Please see the README file for options used in the past. 
+		#
+		$HANDBRAKE -i $IITMP/$1 -o $IITMP/"$PROGPLUGIN"_"$PROGPID"_handbrake.mp4 -e x264 -q 20.0 -a 1,1 -E faac,copy:ac3 -B 160,160 -6 dpl2,auto -R Auto,Auto -D 0.0,0.0 -f mp4$PROGCROPPING -X 1280 -Y 720 --loose-anamorphic -m -x cabac=0:ref=2:me=umh:b-pyramid=none:b-adapt=2:weightb=0:trellis=0:weightp=0:vbv-maxrate=9500:vbv-bufsize=9500:level=3.1
+		#
+		#
+
+		ENCODINGFINISHED=`date +%s`
+		ENCODINGDURATION=`dhms $(($ENCODINGFINISHED-$ENCODINGSTARTED))`
+
+		sleep 3
+
+		# Put the original in the Trash if we're in debug mode, otherwise just destroy it.
+		if [ $DEBUG -eq 1 ]; then
+			mv $IITMP/$1 /Users/$USER/.Trash/iimport_original_$1
+		else
+			rm $IITMP/$1
+		fi
+
+		# Move our re-encoded file into the limelight.
+		mv $IITMP/"$PROGPLUGIN"_"$PROGPID"_handbrake.mp4 $IITMP/$1
+		
+		# Tweak the encoding source name.
+		PROGSOURCE="iImport for $PROGSOURCE"
+
+		# Check our new encoding.
+		MEDIAINFODUMP=`$MEDIAINFO $IITMP/$1`
+		LOGPROGPROFILE=`echo "$MEDIAINFODUMP" | grep "Format profile" | grep "@" | awk -F\:\  {'print $2'}`
+		LOGPROGBITRATE=`echo "$MEDIAINFODUMP" | grep "Overall bit rate" | grep -v "mode" | awk -F\:\  {'print $2'} | tr -d ' '`
+
+		echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Re-encoding completed in $ENCODINGDURATION." >> $IILOG
+		echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Now encoded$LOGPROGHD$LOGPROGRES ($LOGPROGPROFILE) without CABAC entropy coding ($LOGPROGBITRATE)." >> $IILOG
+
 	fi
 
 }
