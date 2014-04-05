@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# iImport v3.39 (7th March 2014) by Andy Davison
+# iImport v3.40 (4th April 2014) by Andy Davison
 #  Imports content from get_iplayer into iTunes.
 
 if [ "$1" == "-h" ]; then
@@ -36,8 +36,9 @@ ITUNESMEDIA="/Users/$USER/Music/iTunes/iTunes Media"
 TWEET=0
 TTYTTER="/usr/local/bin/ttytter"
 
-# Do you want to re-encode content for the Apple TV (1st Gen)?
-ATVENC=1
+# Do you want to re-encode content for the Apple TV?
+## Choose '0' to skip re-encoding, '1' for 1st Gen Apple TV, '2' for 2nd Gen, '3' for 3rd Gen.
+ATVENC=0
 MEDIAINFO="/usr/local/bin/mediainfo"
 HANDBRAKE="/usr/local/bin/handbrake"
 
@@ -491,8 +492,15 @@ reencode() {
 		PROGFRAMES=`echo "$MEDIAINFODUMP" | grep ReFrames | awk -F\:\  {'print $2'} | awk -F\ frames {'print $1'}`
 
 		# Determine the crop value for the bottom if the video is greater than 720 pixels in height (cheeky beeb).
-		if [[ "$PROGYRES" -gt 720 ]]; then
+		if [[ "$PROGYRES" -gt 720 ]] && [[ "$PROGYRES" -lt 1080 ]]; then
 			PROGYRESDIFF=$(($PROGYRES-720))
+			PROGCROPPING=" --crop 0:$PROGYRESDIFF:0:0"
+			LOGPROGCROP=" (with $PROGYRESDIFF pixel lower crop)"
+		fi
+
+		# Do the same for 1080p content in case we ever end up dealing with it.
+		if [[ "$PROGYRES" -gt 1080 ]]; then
+			PROGYRESDIFF=$(($PROGYRES-1080))
 			PROGCROPPING=" --crop 0:$PROGYRESDIFF:0:0"
 			LOGPROGCROP=" (with $PROGYRESDIFF pixel lower crop)"
 		fi
@@ -504,16 +512,23 @@ reencode() {
 		[[ "$PROGCABAC" == "Yes" ]] && LOGPROGCABAC=" using CABAC"
 
 		# Log it!
-		echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Encoded$LOGPROGHD$LOGPROGRES ($LOGPROGPROFILE)$LOGPROGCABAC with $PROGFRAMES reference frames ($LOGPROGBITRATE)." >> $IILOG
-		echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Episode '$PROGEPISODE' from '$PROGSERIESFULL' is being re-encoded$LOGPROGCROP for Apple TV..." >> $IILOG
+		echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Encoded$LOGPROGHD$LOGPROGRES ($LOGPROGPROFILE)$LOGPROGCABAC with $PROGFRAMES reference frames at $LOGPROGBITRATE." >> $IILOG
+		echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Episode '$PROGEPISODE' from '$PROGSERIESFULL' is being re-encoded$LOGPROGCROP for Apple TV $ATVENC..." >> $IILOG
 		ENCODINGSTARTED=`date +%s`
 
-		# Re-encode the file, max size 1280x720 in a 32-bit container. This setting is now a minor modification of the handbrake ATV1 default. See handbrake -z for preset settings.
-		#  Please see the README file for options used in the past. 
-		#
-		$HANDBRAKE -i $IITMP/$1 -o $IITMP/"$PROGPLUGIN"_"$PROGPID"_handbrake.mp4 -e x264 -q 20.0 -a 1,1 -E faac,copy:ac3 -B 160,160 -6 dpl2,auto -R Auto,Auto -D 0.0,0.0 -f mp4$PROGCROPPING -X 1280 -Y 720 --loose-anamorphic -m -x cabac=0:ref=2:me=umh:b-pyramid=none:b-adapt=2:weightb=0:trellis=0:weightp=0:vbv-maxrate=9500:vbv-bufsize=9500:level=3.1
-		#
-		#
+
+		# Re-encode the file for whichever Apple TV we aiming for.
+		#  After '-f mp4' we insert $PROGCROPPING in case it is still required.
+
+		# Apple TV 1 : Max size 1280x720 in a 32-bit container with no CABAC. 
+		[ $ATVENC -eq 1 ] && $HANDBRAKE -i $IITMP/$1 -o $IITMP/"$PROGPLUGIN"_"$PROGPID"_handbrake.mp4 -e x264 -q 20.0 -r 30 --pfr -a 1,1 -E faac,copy:ac3 -B 160,160 -6 dpl2,auto -R Auto,Auto -D 0.0,0.0 --audio-copy-mask aac,ac3,dtshd,dts,mp3 --audio-fallback ffac3 -f mp4$PROGCROPPING -4 -X 1280 -Y 720 --loose-anamorphic --modulus 2 -m --x264-preset medium --h264-profile high --h264-level 3.1 -x qpmin=4:cabac=0:ref=2:b-pyramid=none:weightb=0:weightp=0:vbv-maxrate=9500:vbv-bufsize=9500
+
+		# Apple TV 2 : Max size 1280x720 in a 32-bit container.
+		[ $ATVENC -eq 2 ] && $HANDBRAKE -i $IITMP/$1 -o $IITMP/"$PROGPLUGIN"_"$PROGPID"_handbrake.mp4 -e x264 -q 20.0 -r 30 --pfr -a 1,1 -E faac,copy:ac3 -B 160,160 -6 dpl2,auto -R Auto,Auto -D 0.0,0.0 --audio-copy-mask aac,ac3,dtshd,dts,mp3 --audio-fallback ffac3 -f mp4$PROGCROPPING -4 -X 1280 -Y 720 --loose-anamorphic --modulus 2 -m --x264-preset medium --h264-profile high --h264-level 3.1
+
+		# Apple TV 3 : Max size 1920x1080.
+		[ $ATVENC -eq 3 ] && $HANDBRAKE -i $IITMP/$1 -o $IITMP/"$PROGPLUGIN"_"$PROGPID"_handbrake.mp4 -e x264 -q 20.0 -r 30 --pfr -a 1,1 -E faac,copy:ac3 -B 160,160 -6 dpl2,auto -R Auto,Auto -D 0.0,0.0 --audio-copy-mask aac,ac3,dtshd,dts,mp3 --audio-fallback ffac3 -f mp4$PROGCROPPING -4 -X 1920 -Y 1080 --decomb=fast --loose-anamorphic --modulus 2 -m --x264-preset medium --h264-profile high --h264-level 4.0
+
 
 		ENCODINGFINISHED=`date +%s`
 		ENCODINGDURATION=`dhms $(($ENCODINGFINISHED-$ENCODINGSTARTED))`
@@ -539,7 +554,7 @@ reencode() {
 		LOGPROGBITRATE=`echo "$MEDIAINFODUMP" | grep "Overall bit rate" | grep -v "mode" | awk -F\:\  {'print $2'} | tr -d ' '`
 
 		echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Re-encoding completed in $ENCODINGDURATION." >> $IILOG
-		echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Now encoded$LOGPROGHD$LOGPROGRES ($LOGPROGPROFILE) without CABAC entropy coding ($LOGPROGBITRATE)." >> $IILOG
+		echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Now encoded$LOGPROGHD$LOGPROGRES ($LOGPROGPROFILE) at $LOGPROGBITRATE." >> $IILOG
 
 	fi
 
@@ -680,7 +695,7 @@ if [[ "$1" == "agent" || "$1" == "download" || "$1" == "" ]]; then
 		fi
 		
 		# Do the Apple TV magic if required.
-		[ $ATVENC -eq 1 ] && reencode $NEWFILE
+		[ $ATVENC -ne 0 ] && reencode $NEWFILE
 				
 		tag $NEWFILE
 		
