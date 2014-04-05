@@ -1,7 +1,7 @@
-iImport v3.39
+iImport v3.40
 =============
 
-iImport is a script that automatically imports video content fetched by get_iplayer into iTunes, optionally re-encoding it with Handbrake for compatibility with the 1st Generation Apple TV. The script is designed to run on Mac OS X v10.6.8 or higher.
+iImport is a script that automatically imports video content fetched by get_iplayer into iTunes, optionally re-encoding it with Handbrake for compatibility with the Apple TV. The script is designed to run on Mac OS X v10.6.8 or higher.
 
 
 Details
@@ -9,15 +9,23 @@ Details
 
 Episode and series names, artwork, descriptions and other metadata are collected or generated and added to the file using a number of third-party metadata editors. The aim is to result in an iTunes-friendly file that will work for a variety of Apple devices; most notably the Apple TV.
 
-iImport also includes a re-encoding section, which examines a fetched file and determines whether it is compatible with the original Apple TV. The file is re-encoded using Handbrake if it is not. No re-encoding should be necessary for the 3rd generation Apple TV (1080p capable model). I've never owned a 2nd generation model, so you're on your own with that one!
+If you find that the files you are importing cause problems with your Apple TV, iImport can re-encode them using HandBrake. Just edit the ATVENC option at the top of the script.
 
-In essence, the script provides a PVR function to iTunes via get_iplayer.
+In essence, the script allows PVR functionality to iTunes using get_iplayer.
 
 
 Dependencies
 ------------
 
 The iImport scripts employ a number of different streaming, conversion and tagging programs to result in a iTunes-digestible file.
+
+Most of these dependencies (atomicparsley, ffmpeg, mediainfo, rtmpdump) can now be installed using [HomeBrew](http://brew.sh). After installing HomeBrew, just run:
+
+	brew installl <dependency>
+
+In fact, even get_iplayer itself can now be installed in this way. Check the [HomeBrew get_iplayer](https://github.com/dinkypumpkin/homebrew-get_iplayer) instructions for details.
+
+The command line version of HandBrake is easily installed from their website.
 
 
 ### Essential
@@ -28,7 +36,7 @@ http://git.infradead.org/get_iplayer.git
 
 You may need to install HTML::Entities for Perl using:
 
- sudo cpan HTML::Entities
+	sudo cpan HTML::Entities
 
 - ffmpeg
 
@@ -51,7 +59,7 @@ https://dl.dropbox.com/u/331720/download/atomicparsley.zip (Universal Binary v0.
 
 ### Optional
 
-Only required if you wish to re-encode the download for the 1st Generation Apple TV:
+Only required if you wish to re-encode the download for the Apple TV:
 
 - handbrakeCLI
 
@@ -68,7 +76,7 @@ Only required if you wish to tweet upon a successful import:
 
 http://www.floodgap.com/software/ttytter/
 
-You will need to configure TTYtter according to it's own instructions before iImport will be able to use it.
+You will need to configure TTYtter according to it's own instructions before iImport will be able to use it. To be honest, I've not used this in a long time, so it may well be broken by now.
 
 
 Installation

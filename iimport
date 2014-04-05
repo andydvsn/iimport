@@ -546,7 +546,7 @@ reencode() {
 		mv $IITMP/"$PROGPLUGIN"_"$PROGPID"_handbrake.mp4 $IITMP/$1
 		
 		# Tweak the encoding source name.
-		PROGSOURCE="iImport for $PROGSOURCE"
+		PROGSOURCE="iImport for $PROGSOURCE (ATV$ATVENC)"
 
 		# Check our new encoding.
 		MEDIAINFODUMP=`$MEDIAINFO $IITMP/$1`

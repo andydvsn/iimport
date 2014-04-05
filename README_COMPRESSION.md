@@ -3,9 +3,7 @@ Compression Options
 
 I tried many different compression settings for the Apple TV 1.
 
-The last one is the one we stuck with for longest, getting a good balance between full 720p and picture quality before the ATV1 would explode.
-
-We are now using the HandBrake defaults, but with 32-bit containers (no -6 option) as 64-bit containers still seem to cause problems.
+The last one is the one we stuck with for longest, getting a good balance between full 720p and picture quality before the ATV1 would explode. We are now using the HandBrake defaults, but with often in 32-bit containers (no -4 option) as 64-bit containers caused problems with AtomicParsley.
 
 1. This setting sort of works, but there's stuttering on fade-in and fade-out and some slightly iffy slow panning.
 
