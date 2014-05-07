@@ -19,11 +19,14 @@ Dependencies
 
 The iImport scripts employ a number of different streaming, conversion and tagging programs to result in a iTunes-digestible file. Most of these dependencies (atomicparsley, ffmpeg, mediainfo, rtmpdump) can now be installed using [HomeBrew](http://brew.sh). After installing HomeBrew, just run:
 
-	brew installl <dependency>
+	brew tap dinkypumpkin/get_iplayer
+	brew update
+	brew install atomicparsley ffmpeg mediainfo rtmpdump
+	brew install --with-deps get_iplayer
 
-In fact, even get_iplayer itself can now be installed in this way. Check the [HomeBrew get_iplayer](https://github.com/dinkypumpkin/homebrew-get_iplayer) instructions for details.
+Check the [HomeBrew get_iplayer](https://github.com/dinkypumpkin/homebrew-get_iplayer) instructions for details on the get_iplayer installation using this method.
 
-The command line version of HandBrake is easily installed from their website.
+The [command line version of HandBrake](http://handbrake.fr/downloads2.php) is easily installed from their website.
 
 
 ### Essential
