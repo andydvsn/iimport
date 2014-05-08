@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# iImport v3.40 (4th April 2014) by Andy Davison
+# iImport v3.41 (8th May 2014) by Andy Davison
 #  Imports content from get_iplayer into iTunes.
 
 if [ "$1" == "-h" ]; then
@@ -62,7 +62,7 @@ ATOMICPARSLEY=`echo "$GIOPTS" | awk -F\atomicparsley\  {'print $2'}`
 
 # Don't let the log file grow too big.
 IILOG="/Users/$USER/Library/Logs/iimport.log"
-find ~/Library/Logs/iimport.log -size +64k -exec rm -f {} \;
+find $IILOG -size +64k -exec rm -f {} \;
 touch $IILOG
 
 # Padding settings for Atomic Parsley.
