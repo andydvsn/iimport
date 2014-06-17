@@ -405,7 +405,7 @@ metadata() {
 
 		# Cheeky hack to get Spotlight to index the file completely... don't look...
 		/bin/mv $IITMP/$1 /Users/$USER/Movies/
-		/bin/sleep 8
+		/bin/sleep 15
 		PROGMDLS=`/usr/bin/mdls /Users/$USER/Movies/$1`
 		# Quick! Put it back!
 		/bin/mv /Users/$USER/Movies/$1 $IITMP/
