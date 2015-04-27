@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# iImport v3.41 (8th May 2014) by Andy Davison
+# iImport v3.50 (27th April 2015) by Andy Davison
 #  Imports content from get_iplayer into iTunes.
 
-if [ "$1" == "-h" ]; then
-	echo "./iimport [ agent | download | init | report | stallcheck ]"
+if [ "$1" == "-h" ] || [ $# == 0 ]; then
+	echo "$0 [ agent | download | init | report | stallcheck ]"
 	exit 0
 fi
 
@@ -384,6 +384,12 @@ metadata() {
 		PROGGENRE="Children's"
 	fi
 
+	PROGSOURCE="BBC iPlayer"
+	PROGSOURCESHRT="iplayer"
+	MINIYEAR=$(($PROGBCASTYEAR-2000))
+	ROMANYEAR=$(roman $MINIYEAR)
+	PROGCOPYRIGHT="(C) BBC MM$ROMANYEAR"
+
 	### Figure out metadata specific to a particular plugin (tv,radio,etc)
 
 	if [[ "$PROGPLUGIN" == "tv" ]]; then
@@ -394,12 +400,6 @@ metadata() {
 			PROGTYPE="Movie"
 		fi
 
-		PROGSOURCE="BBC iPlayer"
-		PROGSOURCESHRT="iplayer"
-		MINIYEAR=$(($PROGBCASTYEAR-2000))
-		ROMANYEAR=$(roman $MINIYEAR)
-		PROGCOPYRIGHT="(C) BBC MM$ROMANYEAR"
-		
 		# If there was no encoding tool information, just use the short source name.
 		[ "$PROGENCTOOL" = "" ] && PROGENCTOOL="$PROGSOURCESHRT$PROGBCASTYEAR"
 
@@ -433,6 +433,12 @@ metadata() {
 		fi
 
 	fi
+
+	if [[ "$PROGPLUGIN" == "radio" ]]; then
+
+		PROGTYPE="Podcast"
+
+	fi
 	
 }
 
@@ -454,11 +460,13 @@ printmeta() {
 	echo "  SPID:    $PROGSHORTPID"
 	echo "  NPID:    $PROGNUMPID"
 	echo
-	echo "  Encoder: $PROGENCTOOL"
-	echo "  HD:      $PROGHD ("$PROGDEF")"
-	echo "  X:       $PROGXRES"
-	echo "  Y:       $PROGYRES"
-	echo
+	if [[ "$PROGPLUGIN" == "tv" ]]; then
+		echo "  Encoder: $PROGENCTOOL"
+		echo "  HD:      $PROGHD ("$PROGDEF")"
+		echo "  X:       $PROGXRES"
+		echo "  Y:       $PROGYRES"
+		echo
+	fi
 	echo "Human:"
 	echo
 	echo "  Full Series Title:   $PROGSERIESFULL"	
@@ -563,13 +571,21 @@ reencode() {
 # Tag the file using AtomicParsley.
 tag() {
 
-	echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Tagging $PROGDEF file $IITMP/$1." >> $IILOG
-	
-	[ "$DEBUG" == "1" ] && echo $ATOMICPARSLEY "$IITMP"/"$1" --TVEpisode "$PROGPID" --cnID "$PROGNUMPID" --hdvideo "$PROGHD" --encodedBy "$PROGSOURCE" --TVSeasonNum "$PROGSERIESNUM" --disk "$PROGSERIESNUM" --TVEpisodeNum "$PROGEPISODENUM" --tracknum "$PROGEPISODENUM" --title "$PROGEPISODE" --TVShowName "$PROGSERIES" --album "$PROGSERIESFULL" --description "$PROGDESC" --longdesc "$PROGLDES" --comment "" $PROGRATING --advisory \"\" --genre "$PROGGENRE" --TVNetwork "$PROGCHANNEL" --grouping "$PROGCHANNEL" --composer "$PROGSOURCE" --copyright "$PROGCOPYRIGHT" --stik "$PROGTYPE" --overWrite > /Users/$USER/.Trash/meta_$PROGPLUGIN_$PROGPID.sh
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Retagging $PROGPLUGIN file $IITMP/$1." >> $IILOG
 
-	$ATOMICPARSLEY "$IITMP"/"$1" --TVEpisode "$PROGPID" --cnID "$PROGNUMPID" --hdvideo "$PROGHD" --encodedBy "$PROGSOURCE" --TVSeasonNum "$PROGSERIESNUM" --disk "$PROGSERIESNUM" --TVEpisodeNum "$PROGEPISODENUM" --tracknum "$PROGEPISODENUM" --title "$PROGEPISODE" --TVShowName "$PROGSERIES" --album "$PROGSERIESFULL" --description "$PROGDESC" --longdesc "$PROGLDES" --comment "" $PROGRATING --advisory \"\" --genre "$PROGGENRE" --TVNetwork "$PROGCHANNEL" --grouping "$PROGCHANNEL" --composer "$PROGSOURCE" --copyright "$PROGCOPYRIGHT" --stik "$PROGTYPE" --overWrite &>/dev/null
+	if [[ "$PROGPLUGIN" == "tv" ]]; then
 
-	echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Tagging $IITMP/$1 complete." >> $IILOG
+		[ "$DEBUG" == "1" ] && echo $ATOMICPARSLEY "$IITMP"/"$1" --TVEpisode "$PROGPID" --cnID "$PROGNUMPID" --hdvideo "$PROGHD" --encodedBy "$PROGSOURCE" --TVSeasonNum "$PROGSERIESNUM" --disk "$PROGSERIESNUM" --TVEpisodeNum "$PROGEPISODENUM" --tracknum "$PROGEPISODENUM" --title "$PROGEPISODE" --TVShowName "$PROGSERIES" --album "$PROGSERIESFULL" --description "$PROGDESC" --longdesc "$PROGLDES" --comment "" $PROGRATING --advisory \"\" --genre "$PROGGENRE" --TVNetwork "$PROGCHANNEL" --grouping "$PROGCHANNEL" --composer "$PROGSOURCE" --copyright "$PROGCOPYRIGHT" --stik "$PROGTYPE" --overWrite > /Users/$USER/.Trash/meta_$PROGPLUGIN_$PROGPID.sh
+
+		$ATOMICPARSLEY "$IITMP"/"$1" --TVEpisode "$PROGPID" --cnID "$PROGNUMPID" --hdvideo "$PROGHD" --encodedBy "$PROGSOURCE" --TVSeasonNum "$PROGSERIESNUM" --disk "$PROGSERIESNUM" --TVEpisodeNum "$PROGEPISODENUM" --tracknum "$PROGEPISODENUM" --title "$PROGEPISODE" --TVShowName "$PROGSERIES" --album "$PROGSERIESFULL" --description "$PROGDESC" --longdesc "$PROGLDES" --comment "" $PROGRATING --advisory \"\" --genre "$PROGGENRE" --TVNetwork "$PROGCHANNEL" --grouping "$PROGCHANNEL" --composer "$PROGSOURCE" --copyright "$PROGCOPYRIGHT" --stik "$PROGTYPE" --overWrite &>/dev/null
+
+	fi
+
+	if [[ "$PROGPLUGIN" == "radio" ]]; then
+
+		$ATOMICPARSLEY "$IITMP"/"$1" --podcastFlag true --description "$PROGDESC" --longdesc "$PROGLDES" --comment "" --copyright "$PROGCOPYRIGHT" --overWrite &>/dev/null
+
+	fi
 
 }
 
@@ -581,21 +597,23 @@ import() {
 	[ ! -e $IITMP/$IIGO ] && mkdir $IITMP/$IIGO
 
 	# Shift files that are ready into the import directory.
-	for i in `ls -1 $IITMP | grep "\.mp4" | grep -v "\.flv" | grep -v "\.partial"`; do
-		PROGM4V=`echo $i | awk -F\. '{print $1}'`
-		mv $IITMP/$i $IITMP/$IIGO/$PROGM4V.m4v
-		PROGM4V=$PROGM4V.m4v
+	for i in `ls -1 $IITMP | grep "\.mp4\|\.m4a" | grep -v "\.flv" | grep -v "\.partial"`; do
+		FILENAME=`echo $i | awk -F\. '{print $1}'`
+		FILEEXTN=`echo $i | awk -F\. '{print $2}'`
+		mv $IITMP/$i $IITMP/$IIGO/$FILENAME.$FILEEXTN
 	done
 
 	# Now the finished files are out of the way, move them to the Automatic Import location or fall back to the AppleScript method.
+	ITUNESAUTO="Automatically Add to iTunes.localized"
 	if [ -d "$ITUNESMEDIA/Automatically Add to iTunes.localized" ]; then
-		ITUNESAUTO="Automatically Add to iTunes.localized"
 		IIAUTOGO=1
 	elif [ -d "$ITUNESMEDIA/Automatically Add to iTunes" ]; then
 		ITUNESAUTO="Automatically Add to iTunes"
 		IIAUTOGO=1
 	else
-		IIAUTOGO=0
+		#IIAUTOGO=0
+		mkdir -p "$ITUNESMEDIA/Automatically Add to iTunes.localized"
+		IIAUTOGO=1
 	fi
 
 	if [ $IIAUTOGO -eq 1 ]; then
@@ -651,7 +669,7 @@ if [[ "$1" == "agent" || "$1" == "download" || "$1" == "" ]]; then
 	# Create a lockfile so agent requests can't run over us.
 	touch $IITMP/iimport_lock
 
-	for i in `ls -1 /tmp/iimport | grep "\.mp4" | grep -v "\.flv"`; do
+	for i in `ls -1 /tmp/iimport | grep "\.mp4\|\.m4a" | grep -v "\.flv"`; do
 
 		NEWFILE=$i
 
@@ -659,62 +677,78 @@ if [[ "$1" == "agent" || "$1" == "download" || "$1" == "" ]]; then
 
 		metadata $NEWFILE
 		
+
 		if [ $DEBUG -eq 1 ]; then
 			echo >> $IILOG
 			printmeta $NEWFILE >> $IILOG
 			echo >> $IILOG
-			echo "Determining whether to fetch SD copy:" >> $IILOG
-			echo >> $IILOG
-			echo "  SDFETCH = $SDFETCH" >> $IILOG
-			echo "  PROGDEF = $PROGDEF" >> $IILOG
-			echo "  PROGNUMPID = $PROGNUMPID" >> $IILOG
+			if [[ "$PROGPLUGIN" == "tv" ]]; then
+				echo "Determining whether to fetch SD copy:" >> $IILOG
+				echo >> $IILOG
+				echo "  SDFETCH = $SDFETCH" >> $IILOG
+				echo "  PROGDEF = $PROGDEF" >> $IILOG
+				echo "  PROGNUMPID = $PROGNUMPID" >> $IILOG
+			fi
 			echo >> $IILOG
 		fi
-		
-		# If we've fetched a hi-def file, download an SD copy as well for other devices.
-		PROGALREADYSD=""
-		if [ $SDFETCH -eq 1 ] && [ "$PROGDEF" = "HD" ] && [ "$PROGNUMPID" != "" ]; then
-			
-			# But check whether we've already fetched it (sometimes SD and HD are not both available immediately).
-			PROGALREADYSD=`cat /Users/$USER/.get_iplayer/download_history | grep "$PROGPID" | grep "flashvhigh"`
-			
-			if [ "$PROGALREADYSD" = "" ]; then
 
-				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Triggered background fetch of SD counterpart." >> $IILOG
-				/bin/mv $IITMP/$NEWFILE $IITMP/hd"$NEWFILE"
-				CTPRFILE="sd""$NEWFILE"
-				NEWFILE="hd""$NEWFILE"
-				$GETIPLAYER --pid "$PROGPID" --force --tvmode flashvhigh -c "/bin/mv "$IITMP"/"$PROGPLUGIN"_"$PROGPID"_"$PROGSOURCESHRT".mp4 "$IITMP"/"$CTPRFILE"" &>/dev/null &
 
-			else
+		if [[ "$PROGPLUGIN" == "tv" ]]; then
 
-				echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : SD version of '$PROGPID' has already been fetched." >> $IILOG
+			# If we've fetched a hi-def file, download an SD copy as well for other devices.
+			PROGALREADYSD=""
+			if [ $SDFETCH -eq 1 ] && [ "$PROGDEF" = "HD" ] && [ "$PROGNUMPID" != "" ]; then
+				
+				# But check whether we've already fetched it (sometimes SD and HD are not both available immediately).
+				PROGALREADYSD=`cat /Users/$USER/.get_iplayer/download_history | grep "$PROGPID" | grep "flashvhigh"`
+				
+				if [ "$PROGALREADYSD" = "" ]; then
 
+					echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Triggered background fetch of SD counterpart." >> $IILOG
+					/bin/mv $IITMP/$NEWFILE $IITMP/hd"$NEWFILE"
+					CTPRFILE="sd""$NEWFILE"
+					NEWFILE="hd""$NEWFILE"
+					$GETIPLAYER --pid "$PROGPID" --force --tvmode flashvhigh -c "/bin/mv "$IITMP"/"$PROGPLUGIN"_"$PROGPID"_"$PROGSOURCESHRT".mp4 "$IITMP"/"$CTPRFILE"" &>/dev/null &
+
+				else
+
+					echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : SD version of '$PROGPID' has already been fetched." >> $IILOG
+
+				fi
+					
 			fi
 				
-		fi
-		
-		# Do the Apple TV magic if required.
-		[ $ATVENC -ne 0 ] && reencode $NEWFILE
-				
-		tag $NEWFILE
-		
-		if [ $SDFETCH -eq 1 ] && [ "$PROGDEF" = "HD" ] && [ "$PROGNUMPID" != "" ] && [ "$PROGALREADYSD" = "" ]; then
-
-			echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Waiting for SD counterpart." >> $IILOG
-		
-			while [ ! -f "$IITMP"/"$CTPRFILE" ]
-			do
-				sleep 20
-				echo -n "." >> $IILOG
-			done
+			# Do the Apple TV magic if required.
+			[ $ATVENC -ne 0 ] && reencode $NEWFILE
 					
-			# We've already prepped the HD copy, so tweak those values only and apply to the counterpart.
-			PROGHD="false"
-			PROGDEF="SD"
-			tag $CTPRFILE
-		
+			tag $NEWFILE
+			
+			if [ $SDFETCH -eq 1 ] && [ "$PROGDEF" = "HD" ] && [ "$PROGNUMPID" != "" ] && [ "$PROGALREADYSD" = "" ]; then
+
+				echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : INFO : Waiting for SD counterpart." >> $IILOG
+			
+				while [ ! -f "$IITMP"/"$CTPRFILE" ]
+				do
+					sleep 20
+					echo -n "." >> $IILOG
+				done
+						
+				# We've already prepped the HD copy, so tweak those values only and apply to the counterpart.
+				PROGHD="false"
+				PROGDEF="SD"
+				tag $CTPRFILE
+			
+			fi
+
 		fi
+
+
+		if [[ "$PROGPLUGIN" == "radio" ]]; then
+
+			tag $NEWFILE
+
+		fi
+
 		
 		import
 		
