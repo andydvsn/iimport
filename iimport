@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# iImport v3.50 (27th April 2015) by Andy Davison
+# iImport v3.51 (28th April 2015) by Andy Davison
 #  Imports content from get_iplayer into iTunes.
 
 if [ "$1" == "-h" ] || [ $# == 0 ]; then
@@ -597,7 +597,7 @@ import() {
 	[ ! -e $IITMP/$IIGO ] && mkdir $IITMP/$IIGO
 
 	# Shift files that are ready into the import directory.
-	for i in `ls -1 $IITMP | grep "\.mp4\|\.m4a" | grep -v "\.flv" | grep -v "\.partial"`; do
+	for i in `ls -1 $IITMP | grep "\.mp4\|\.m4a" | grep -v "\.flv" | grep -v "\.partial" | grep -v "\-temp-"`; do
 		FILENAME=`echo $i | awk -F\. '{print $1}'`
 		FILEEXTN=`echo $i | awk -F\. '{print $2}'`
 		mv $IITMP/$i $IITMP/$IIGO/$FILENAME.$FILEEXTN
