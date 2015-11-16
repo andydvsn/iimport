@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# iImport v3.51 (28th April 2015) by Andy Davison
+# iImport v3.52 (16th November 2015) by Andy Davison
 #  Imports content from get_iplayer into iTunes.
 
 if [ "$1" == "-h" ] || [ $# == 0 ]; then
-	echo "$0 [ agent | download | init | report | stallcheck ]"
+	echo "$0 [ add | agent | download | init | report | stallcheck ]"
 	exit 0
 fi
 
@@ -53,6 +53,18 @@ DEBUG=0
 
 #########################################################################
 
+# Really quick PVR adder.
+if [[ "$1" == "add" ]]; then
+	if [ $# -ne 3 ]; then
+		echo "Usage: $0 add <type> <quoted name>"
+		exit 1
+	else
+		[ ! -d /Users/$USER/.get_iplayer/pvr ] && mkdir -p /Users/$USER/.get_iplayer/pvr
+		SPACEBEGONE="$(echo -e "${3}" | tr -d '[[:space:]]')"
+		echo -e "type $2\nsearch0 $3" > /Users/$USER/.get_iplayer/pvr/$2-$SPACEBEGONE
+		exit 0
+	fi
+fi
 
 # Read options from ~/.get_iplayer/options
 GIOPTS=`cat /Users/$USER/.get_iplayer/options`
