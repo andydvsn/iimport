@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# iImport v3.52 (16th November 2015) by Andy Davison
+# iImport v3.53 (8th December 2015) by Andy Davison
 #  Imports content from get_iplayer into iTunes.
 
 if [ "$1" == "-h" ] || [ $# == 0 ]; then
@@ -48,12 +48,15 @@ SDFETCH=0
 # Dependency locations...
 GETIPLAYER="/usr/local/bin/get_iplayer"
 
+# Stop if system load is above this value (0 to disable).
+LOADSTOP=4
+
 # Are you debugging the script?
 DEBUG=0
 
 #########################################################################
 
-# Really quick PVR adder.
+# Really quick adder.
 if [[ "$1" == "add" ]]; then
 	if [ $# -ne 3 ]; then
 		echo "Usage: $0 add <type> <quoted name>"
@@ -76,6 +79,8 @@ ATOMICPARSLEY=`echo "$GIOPTS" | awk -F\atomicparsley\  {'print $2'}`
 IILOG="/Users/$USER/Library/Logs/iimport.log"
 find $IILOG -size +64k -exec rm -f {} \;
 touch $IILOG
+
+[ $DEBUG -gt 0 ] && echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : BEAT : Called as $1." >> $IILOG
 
 # Padding settings for Atomic Parsley.
 export AP_PADDING="DEFAULT_PAD=3072:MIN_PAD=3072:MAX_PAD=7168"
@@ -126,9 +131,10 @@ if [[ "$1" == "stallcheck" ]]; then
 fi
 
 # Finally, check to see if we're already doing something processor intensive.
-if [[ "$1" == "agent" ]]; then
+if [[ "$1" == "agent" ]] && [ $LOADSTOP -ne 0 ]; then
 	LOAD=`/usr/bin/uptime | awk -F\\averages\:\  '{print $2}' | awk -F\\\\\  '{print $2}' | bc | awk '{printf "%.0f\n", $1}'`
-	if [[ "$LOAD" -ge "3" ]]; then
+	if [ $LOAD -ge $LOADSTOP ]; then
+		echo "`date  +'%Y-%m-%d %H:%M:%S'`: [$$] : WARN : System load too high (>$LOADSTOP). Halting." >> $IILOG
 		exit 0
 	fi
 fi
