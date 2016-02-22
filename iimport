@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# iImport v3.53 (8th December 2015) by Andy Davison
+# iImport v3.54 (22nd February 2016) by Andy Davison
 #  Imports content from get_iplayer into iTunes.
 
 if [ "$1" == "-h" ] || [ $# == 0 ]; then
@@ -65,6 +65,7 @@ if [[ "$1" == "add" ]]; then
 		[ ! -d /Users/$USER/.get_iplayer/pvr ] && mkdir -p /Users/$USER/.get_iplayer/pvr
 		SPACEBEGONE="$(echo -e "${3}" | tr -d '[[:space:]]')"
 		echo -e "type $2\nsearch0 $3" > /Users/$USER/.get_iplayer/pvr/$2-$SPACEBEGONE
+		echo "Added $2 programme '$3' to PVR list."
 		exit 0
 	fi
 fi
