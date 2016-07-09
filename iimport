@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# iImport v3.54 (22nd February 2016) by Andy Davison
+# iImport v3.54 (9th July 2016) by Andy Davison
 #  Imports content from get_iplayer into iTunes.
 
 if [ "$1" == "-h" ] || [ $# == 0 ]; then
@@ -49,7 +49,7 @@ SDFETCH=0
 GETIPLAYER="/usr/local/bin/get_iplayer"
 
 # Stop if system load is above this value (0 to disable).
-LOADSTOP=4
+LOADSTOP=0
 
 # Are you debugging the script?
 DEBUG=0
@@ -336,7 +336,7 @@ metadata() {
 	PROGSERIES=`echo $PROGSERIESFULL | awk -F\\:\ Series '{print $1}'`
 
 	# Try for an official series number, then try to grab it from the full series title.
-	PROGSERIESNUM=`echo $PROGINFO | awk -F\\| '{print $7}'`
+	PROGSERIESNUM=`echo $PROGINFO | awk -F\\| '{print $8}'`
 	if [ "$PROGSERIESNUM" = "" ]; then
 		PROGSERIESNUM=`echo $PROGSERIESFULL | awk -F\\:\ Series\  '{print $2}'`
 		if [ "$PROGSERIESNUM" != "" ]; then
@@ -348,11 +348,11 @@ metadata() {
 		fi
 	fi
 
-	PROGEPISODENUM=`echo $PROGINFO | awk -F\\| '{print $8}'`
+	PROGEPISODENUM=`echo $PROGINFO | awk -F\\| '{print $9}'`
 	if [[ "$PROGEPISODENUM" -lt "1" ]]; then
 		PROGEPISODENUM="0"
 	fi
-	PROGEPISODEFULL=`echo $PROGINFO | awk -F\\| '{print $6}'`
+	PROGEPISODEFULL=`echo $PROGINFO | awk -F\\| '{print $7}'`
 	PROGEPISODE=`echo $PROGEPISODEFULL | awk -F\$PROGEPISODENUM.\  '{print $2}'`
 	if [[ "$PROGEPISODE" == "" ]]; then
 		PROGEPISODE="$PROGEPISODEFULL"
@@ -365,10 +365,10 @@ metadata() {
 		PROGONEOFF="0"
 	fi
 
-	PROGDESC=`echo $PROGINFO | awk -F\\| '{print $11}'`
-	PROGCHANNEL=`echo $PROGINFO | awk -F\\| {'print $12'}`
+	PROGDESC=`echo $PROGINFO | awk -F\\| '{print $12}'`
+	PROGCHANNEL=`echo $PROGINFO | awk -F\\| {'print $13'}`
 
-	PROGADVISORY=`echo $PROGINFO | awk -F\\| '{print $16}'`
+	PROGADVISORY=`echo $PROGINFO | awk -F\\| '{print $17}'`
 	if [[ "$PROGADVISORY" == "Yes" ]]; then
 		PROGRATING="--rDNSatom \"uk-tv|TV-16|\" name=iTunEXTC domain=com.apple.iTunes"
 		PROGADVISORY="1"
@@ -377,7 +377,7 @@ metadata() {
 	fi
 
 	# Filter the multitude of genres down a little.
-	PROGGENRES=`echo $PROGINFO | awk -F\\| '{print $13}'`
+	PROGGENRES=`echo $PROGINFO | awk -F\\| '{print $14}'`
 	if [[ "$PROGGENRES" =~ "Entertainment" ]]; then
 		PROGGENRE="Entertainment"
 	fi
@@ -401,6 +401,11 @@ metadata() {
 	fi
 	if [[ "$PROGGENRES" =~ "Children's" ]]; then
 		PROGGENRE="Children's"
+	fi
+
+	# Catch blank genres.
+	if [[ "$PROGGENRES" == "" ]]; then
+		[[ "$PROGCHANNEL" =~ "CBeebies" ]] && PROGGENRE="Children's"
 	fi
 
 	PROGSOURCE="BBC iPlayer"
