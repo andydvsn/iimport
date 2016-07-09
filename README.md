@@ -31,7 +31,7 @@ The [command line version of HandBrake](http://handbrake.fr/downloads2.php) is e
 
 ### Essential
 
-- get_iplayer
+- get_iplayer 2.95 or later
 
 http://git.infradead.org/get_iplayer.git
 
@@ -47,10 +47,6 @@ I had some audio sync issues with the most recent versions of FFMPEG (on the App
 
 https://dl.dropbox.com/u/331720/download/ffmpeg-r19400.zip
 
-- rtmpdump
-
-http://trick77.com/2011/07/30/rtmpdump-2-4-binaries-for-os-x-10-7-lion/
-
 - atomicparsley
 
 https://github.com/wez/atomicparsley
@@ -59,6 +55,13 @@ https://dl.dropbox.com/u/331720/download/atomicparsley.zip (Universal Binary v0.
 
 
 ### Optional
+
+Only required if you wish to use the older Flash download method:
+
+- rtmpdump
+
+http://trick77.com/2011/07/30/rtmpdump-2-4-binaries-for-os-x-10-7-lion/
+
 
 Only required if you wish to re-encode the download for the Apple TV:
 

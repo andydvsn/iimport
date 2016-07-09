@@ -5,7 +5,6 @@ nopurge 1
 output /tmp/iimport
 thumbsize 640
 versionlist default
-tvmode flashhd,flashvhigh
 fileprefix <type>_<pid>_iplayer
 type tv
 nocopyright 1
