@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# iImport v3.54 (9th July 2016) by Andy Davison
+# iImport v3.55 (31st July 2018) by Andy Davison
 #  Imports content from get_iplayer into iTunes.
 
 if [ "$1" == "-h" ] || [ $# == 0 ]; then
@@ -30,7 +30,7 @@ fi
 ### Options #############################################################
 
 # Where is your iTunes folder located?
-ITUNESMEDIA="/Users/$USER/Music/iTunes/iTunes Media"
+ITUNESMEDIA="/Volumes/Drobo/Media/iTunes/iTunes Media"
 
 # Do you want to Tweet when something has been imported?
 TWEET=0
@@ -38,6 +38,7 @@ TTYTTER="/usr/local/bin/ttytter"
 
 # Do you want to re-encode content for the Apple TV?
 ## Choose '0' to skip re-encoding, '1' for 1st Gen Apple TV, '2' for 2nd Gen, '3' for 3rd Gen.
+## You don't need to re-encode for the 4th Gen or later, they can handle pretty much anything.
 ATVENC=0
 MEDIAINFO="/usr/local/bin/mediainfo"
 HANDBRAKE="/usr/local/bin/handbrake"
@@ -45,7 +46,7 @@ HANDBRAKE="/usr/local/bin/handbrake"
 # Do you want to fetch SD counterparts to HD content?
 SDFETCH=0
 
-# Dependency locations...
+# Where is get_iplayer installed?
 GETIPLAYER="/usr/local/bin/get_iplayer"
 
 # Stop if system load is above this value (0 to disable).
@@ -274,6 +275,18 @@ metadata() {
 	PROGINFO=`cat /Users/$USER/.get_iplayer/$PROGPLUGIN.cache | grep $PROGPID`
 	PROGINDEX=`echo $PROGINFO | awk -F\\| '{print $1}'`
 
+	if [ $DEBUG -eq 1 ]; then
+		echo >> $IILOG
+		echo "Metadata (FILEMETA) from downloaded file:" >> $IILOG
+		echo >> $IILOG
+		echo "$FILEMETA" >> $IILOG
+		echo >> $IILOG
+		echo "Metadata (PROGINFO) from $PROGPLUGIN.cache:" >> $IILOG
+		echo >> $IILOG
+		echo "$PROGINFO" >> $IILOG
+		echo >> $IILOG
+	fi
+
 	# Convert short PID to numericPID for cnID.
 	ord() {
 	  printf '%d' "'$1"
@@ -336,7 +349,7 @@ metadata() {
 	PROGSERIES=`echo $PROGSERIESFULL | awk -F\\:\ Series '{print $1}'`
 
 	# Try for an official series number, then try to grab it from the full series title.
-	PROGSERIESNUM=`echo $PROGINFO | awk -F\\| '{print $8}'`
+	PROGSERIESNUM=`echo $PROGINFO | awk -F\\| '{print $5}'`
 	if [ "$PROGSERIESNUM" = "" ]; then
 		PROGSERIESNUM=`echo $PROGSERIESFULL | awk -F\\:\ Series\  '{print $2}'`
 		if [ "$PROGSERIESNUM" != "" ]; then
@@ -348,11 +361,11 @@ metadata() {
 		fi
 	fi
 
-	PROGEPISODENUM=`echo $PROGINFO | awk -F\\| '{print $9}'`
+	PROGEPISODENUM=`echo $PROGINFO | awk -F\\| '{print $6}'`
 	if [[ "$PROGEPISODENUM" -lt "1" ]]; then
 		PROGEPISODENUM="0"
 	fi
-	PROGEPISODEFULL=`echo $PROGINFO | awk -F\\| '{print $7}'`
+	PROGEPISODEFULL=`echo $PROGINFO | awk -F\\| '{print $4}'`
 	PROGEPISODE=`echo $PROGEPISODEFULL | awk -F\$PROGEPISODENUM.\  '{print $2}'`
 	if [[ "$PROGEPISODE" == "" ]]; then
 		PROGEPISODE="$PROGEPISODEFULL"
@@ -366,47 +379,51 @@ metadata() {
 	fi
 
 	PROGDESC=`echo $PROGINFO | awk -F\\| '{print $12}'`
-	PROGCHANNEL=`echo $PROGINFO | awk -F\\| {'print $13'}`
+	PROGCHANNEL=`echo $PROGINFO | awk -F\\| {'print $8'}`
 
-	PROGADVISORY=`echo $PROGINFO | awk -F\\| '{print $17}'`
+	## In get_iplayer v3.15 the guidance field was removed from the cache as unused.
+	#PROGADVISORY=`echo $PROGINFO | awk -F\\| '{print $17}'`
 	if [[ "$PROGADVISORY" == "Yes" ]]; then
 		PROGRATING="--rDNSatom \"uk-tv|TV-16|\" name=iTunEXTC domain=com.apple.iTunes"
 		PROGADVISORY="1"
 	else
+		PROGRATING=""
 		PROGADVISORY="0"
 	fi
 
+	## In get_iplayer v3.15 the categories were removed from the cache file.
+	## We'll remove this from the tagging to leave whatever the file downloaded with intact.
 	# Filter the multitude of genres down a little.
-	PROGGENRES=`echo $PROGINFO | awk -F\\| '{print $14}'`
-	if [[ "$PROGGENRES" =~ "Entertainment" ]]; then
-		PROGGENRE="Entertainment"
-	fi
-	if [[ "$PROGGENRES" =~ "Factual" ]]; then
-		PROGGENRE="Factual"
-	fi
-	if [[ "$PROGGENRES" =~ "Learning" ]]; then
-		PROGGENRE="Learning"
-	fi
-	if [[ "$PROGGENRES" =~ "Drama" ]]; then
-		PROGGENRE="Drama"
-	fi
-	if [[ "$PROGGENRES" =~ "Comedy" ]]; then
-		PROGGENRE="Comedy"
-	fi
-	if [[ "$PROGGENRES" =~ "Music" ]]; then
-		PROGGENRE="Music"
-	fi
-	if [[ "$PROGGENRES" =~ "Sport" ]]; then
-		PROGGENRE="Sport"
-	fi
-	if [[ "$PROGGENRES" =~ "Children's" ]]; then
-		PROGGENRE="Children's"
-	fi
+	# PROGGENRES=`echo $PROGINFO | awk -F\\| '{print $14}'`
+	# if [[ "$PROGGENRES" =~ "Entertainment" ]]; then
+	# 	PROGGENRE="Entertainment"
+	# fi
+	# if [[ "$PROGGENRES" =~ "Factual" ]]; then
+	# 	PROGGENRE="Factual"
+	# fi
+	# if [[ "$PROGGENRES" =~ "Learning" ]]; then
+	# 	PROGGENRE="Learning"
+	# fi
+	# if [[ "$PROGGENRES" =~ "Drama" ]]; then
+	# 	PROGGENRE="Drama"
+	# fi
+	# if [[ "$PROGGENRES" =~ "Comedy" ]]; then
+	# 	PROGGENRE="Comedy"
+	# fi
+	# if [[ "$PROGGENRES" =~ "Music" ]]; then
+	# 	PROGGENRE="Music"
+	# fi
+	# if [[ "$PROGGENRES" =~ "Sport" ]]; then
+	# 	PROGGENRE="Sport"
+	# fi
+	# if [[ "$PROGGENRES" =~ "Children's" ]]; then
+	# 	PROGGENRE="Children's"
+	# fi
 
-	# Catch blank genres.
-	if [[ "$PROGGENRES" == "" ]]; then
-		[[ "$PROGCHANNEL" =~ "CBeebies" ]] && PROGGENRE="Children's"
-	fi
+	# # Catch blank genres.
+	# if [[ "$PROGGENRES" == "" ]]; then
+	# 	[[ "$PROGCHANNEL" =~ "CBeebies" ]] && PROGGENRE="Children's"
+	# fi
 
 	PROGSOURCE="BBC iPlayer"
 	PROGSOURCESHRT="iplayer"
@@ -420,9 +437,10 @@ metadata() {
 
 		PROGTYPE="TV Show"
 
-		if [[ "$PROGGENRES" =~ "Films" ]]; then
-			PROGTYPE="Movie"
-		fi
+		## It would be nice to get this identifier working again.
+		# if [[ "$PROGGENRES" =~ "Films" ]]; then
+		# 	PROGTYPE="Movie"
+		# fi
 
 		# If there was no encoding tool information, just use the short source name.
 		[ "$PROGENCTOOL" = "" ] && PROGENCTOOL="$PROGSOURCESHRT$PROGBCASTYEAR"
@@ -473,43 +491,44 @@ printmeta() {
 	echo
 	echo "Technical:"
 	echo
-	echo "  Index:        $PROGINDEX"
-	echo "  Plugin:       $PROGPLUGIN"
-	echo "  Type:         $PROGTYPE"
-	echo "  Source:       $PROGSOURCE"
-	echo "  Short Source: $PROGSOURCESHRT"
-	echo "  Channel:      $PROGCHANNEL"
+	echo "  PROGINDEX:          $PROGINDEX"
+	echo "  PROGPLUGIN:         $PROGPLUGIN"
+	echo "  PROGTYPE:           $PROGTYPE"
+	echo "  PROGSOURCE:         $PROGSOURCE"
+	echo "  PROGSOURCESHRT:     $PROGSOURCESHRT"
+	echo "  PROGCHANNEL:        $PROGCHANNEL"
 	echo
-	echo "  PID:     $PROGPID"
-	echo "  SPID:    $PROGSHORTPID"
-	echo "  NPID:    $PROGNUMPID"
+	echo "  PROGPID:            $PROGPID"
+	echo "  PROGSHORTPID:       $PROGSHORTPID"
+	echo "  PROGNUMPID:         $PROGNUMPID"
 	echo
 	if [[ "$PROGPLUGIN" == "tv" ]]; then
-		echo "  Encoder: $PROGENCTOOL"
-		echo "  HD:      $PROGHD ("$PROGDEF")"
-		echo "  X:       $PROGXRES"
-		echo "  Y:       $PROGYRES"
+		echo "  PROGENCTOOL:        $PROGENCTOOL"
+		echo "  PROGDEF:            $PROGDEF"
+		echo "  PROGHD:             $PROGHD"
+		echo "  PROGXRES:           $PROGXRES"
+		echo "  PROGYRES:           $PROGYRES"
 		echo
 	fi
 	echo "Human:"
 	echo
-	echo "  Full Series Title:   $PROGSERIESFULL"	
-	echo "  Short Series Title:  $PROGSERIES"
-	echo "  Series Number:       $PROGSERIESNUM"
-	echo "  Copyright:           $PROGCOPYRIGHT"
-	echo "  Year of broadcast:   $PROGBCASTYEAR"	
+	echo "  PROGSERIESFULL:     $PROGSERIESFULL"	
+	echo "  PROGSERIES:         $PROGSERIES"
+	echo "  PROGSERIESNUM:      $PROGSERIESNUM"
+	echo "  PROGCOPYRIGHT:      $PROGCOPYRIGHT"
+	echo "  PROGBCASTYEAR:      $PROGBCASTYEAR"	
 	echo
-	echo "  Full Episode Title:  $PROGEPISODEFULL"
-	echo "  Short Episode Title: $PROGEPISODE"
-	echo "  Episode Number:      $PROGEPISODENUM"
-	echo "  One-off Show:        $PROGONEOFF"
+	echo "  PROGEPISODEFULL     $PROGEPISODEFULL"
+	echo "  PROGEPISODE:        $PROGEPISODE"
+	echo "  PROGEPISODENUM:     $PROGEPISODENUM"
+	echo "  PROGONEOFF:         $PROGONEOFF"
 	echo
-	echo "  Genre List:          $PROGGENRES"
-	echo "  iTunes Genre:        $PROGGENRE"
-	echo "  Parental Advisory:   $PROGADVISORY"
-	echo
-	echo "  Full Description:    $PROGLDES"
-	echo "  Short Description:   $PROGDESC"
+	#echo "  PROGGENRES:         $PROGGENRES"
+	#echo "  PROGGENRE:          $PROGGENRE"
+	#echo "  PROGADVISORY:       $PROGADVISORY"
+	#echo
+	echo "  PROGLDES:           $PROGLDES"
+	echo "  PROGDESC:           $PROGDESC"
 	echo
 	
 }
@@ -599,9 +618,13 @@ tag() {
 
 	if [[ "$PROGPLUGIN" == "tv" ]]; then
 
-		[ "$DEBUG" == "1" ] && echo $ATOMICPARSLEY "$IITMP"/"$1" --TVEpisode "$PROGPID" --cnID "$PROGNUMPID" --hdvideo "$PROGHD" --encodedBy "$PROGSOURCE" --TVSeasonNum "$PROGSERIESNUM" --disk "$PROGSERIESNUM" --TVEpisodeNum "$PROGEPISODENUM" --tracknum "$PROGEPISODENUM" --title "$PROGEPISODE" --TVShowName "$PROGSERIES" --album "$PROGSERIESFULL" --description "$PROGDESC" --longdesc "$PROGLDES" --comment "" $PROGRATING --advisory \"\" --genre "$PROGGENRE" --TVNetwork "$PROGCHANNEL" --grouping "$PROGCHANNEL" --composer "$PROGSOURCE" --copyright "$PROGCOPYRIGHT" --stik "$PROGTYPE" --overWrite > /Users/$USER/.Trash/meta_$PROGPLUGIN_$PROGPID.sh
+		## This is the pre-get_iplayer v3.15 command which also modified the genre (PROGGENRE) atom and parental advisory (PROGRATING) atom using 'TV-16' in the iTunEXTC domain.
+		#[ "$DEBUG" == "1" ] && echo $ATOMICPARSLEY "$IITMP"/"$1" --TVEpisode "$PROGPID" --cnID "$PROGNUMPID" --hdvideo "$PROGHD" --encodedBy "$PROGSOURCE" --TVSeasonNum "$PROGSERIESNUM" --disk "$PROGSERIESNUM" --TVEpisodeNum "$PROGEPISODENUM" --tracknum "$PROGEPISODENUM" --title "$PROGEPISODE" --TVShowName "$PROGSERIES" --album "$PROGSERIESFULL" --description "$PROGDESC" --longdesc "$PROGLDES" --comment "" $PROGRATING --advisory \"\" --genre "$PROGGENRE" --TVNetwork "$PROGCHANNEL" --grouping "$PROGCHANNEL" --composer "$PROGSOURCE" --copyright "$PROGCOPYRIGHT" --stik "$PROGTYPE" --overWrite > /Users/$USER/.Trash/meta_$PROGPLUGIN_$PROGPID.sh
+		#$ATOMICPARSLEY "$IITMP"/"$1" --TVEpisode "$PROGPID" --cnID "$PROGNUMPID" --hdvideo "$PROGHD" --encodedBy "$PROGSOURCE" --TVSeasonNum "$PROGSERIESNUM" --disk "$PROGSERIESNUM" --TVEpisodeNum "$PROGEPISODENUM" --tracknum "$PROGEPISODENUM" --title "$PROGEPISODE" --TVShowName "$PROGSERIES" --album "$PROGSERIESFULL" --description "$PROGDESC" --longdesc "$PROGLDES" --comment "" $PROGRATING --advisory \"\" --genre "$PROGGENRE" --TVNetwork "$PROGCHANNEL" --grouping "$PROGCHANNEL" --composer "$PROGSOURCE" --copyright "$PROGCOPYRIGHT" --stik "$PROGTYPE" --overWrite &>/dev/null
 
-		$ATOMICPARSLEY "$IITMP"/"$1" --TVEpisode "$PROGPID" --cnID "$PROGNUMPID" --hdvideo "$PROGHD" --encodedBy "$PROGSOURCE" --TVSeasonNum "$PROGSERIESNUM" --disk "$PROGSERIESNUM" --TVEpisodeNum "$PROGEPISODENUM" --tracknum "$PROGEPISODENUM" --title "$PROGEPISODE" --TVShowName "$PROGSERIES" --album "$PROGSERIESFULL" --description "$PROGDESC" --longdesc "$PROGLDES" --comment "" $PROGRATING --advisory \"\" --genre "$PROGGENRE" --TVNetwork "$PROGCHANNEL" --grouping "$PROGCHANNEL" --composer "$PROGSOURCE" --copyright "$PROGCOPYRIGHT" --stik "$PROGTYPE" --overWrite &>/dev/null
+		[ "$DEBUG" == "1" ] && echo $ATOMICPARSLEY "$IITMP"/"$1" --TVEpisode "$PROGPID" --cnID "$PROGNUMPID" --hdvideo "$PROGHD" --encodedBy "$PROGSOURCE" --TVSeasonNum "$PROGSERIESNUM" --disk "$PROGSERIESNUM" --TVEpisodeNum "$PROGEPISODENUM" --tracknum "$PROGEPISODENUM" --title "$PROGEPISODE" --TVShowName "$PROGSERIES" --album "$PROGSERIESFULL" --description "$PROGDESC" --longdesc "$PROGLDES" --comment "" --advisory \"\" --TVNetwork "$PROGCHANNEL" --grouping "$PROGCHANNEL" --composer "$PROGSOURCE" --copyright "$PROGCOPYRIGHT" --stik "$PROGTYPE" --overWrite > /Users/$USER/.Trash/meta_$PROGPLUGIN_$PROGPID.sh
+		$ATOMICPARSLEY "$IITMP"/"$1" --TVEpisode "$PROGPID" --cnID "$PROGNUMPID" --hdvideo "$PROGHD" --encodedBy "$PROGSOURCE" --TVSeasonNum "$PROGSERIESNUM" --disk "$PROGSERIESNUM" --TVEpisodeNum "$PROGEPISODENUM" --tracknum "$PROGEPISODENUM" --title "$PROGEPISODE" --TVShowName "$PROGSERIES" --album "$PROGSERIESFULL" --description "$PROGDESC" --longdesc "$PROGLDES" --comment "" --advisory \"\" --TVNetwork "$PROGCHANNEL" --grouping "$PROGCHANNEL" --composer "$PROGSOURCE" --copyright "$PROGCOPYRIGHT" --stik "$PROGTYPE" --overWrite &>/dev/null
+
 
 	fi
 
@@ -655,7 +678,6 @@ import() {
 				add progtoImportPath
 			end tell
 		EOT`
-
 	fi
 
 	if [ $DEBUG -eq 1 ]; then
