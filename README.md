@@ -3,6 +3,7 @@ iImport
 
 iImport is a script that automatically imports video content fetched by get_iplayer into iTunes, optionally re-encoding it with Handbrake for compatibility with the Apple TV. The script is designed to run on Mac OS X v10.6.8 or higher.
 
+**NOTE:** Following the discontinuation of iTunes with macOS 10.15 Catalina I've taken the decision to move on to Plex as my home media server. While iImport still works just fine, I'm unlikely to update this in the future. I'll be continuing to use it while I devise a means of switching to Plex.
 
 Details
 -------
