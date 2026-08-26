@@ -1,9 +1,83 @@
 iImport
 =======
 
+This repo holds two generations of scripts for turning get_iplayer downloads into a tidy media library:
+
+- **Plex (or any other media server)** — a simple set of scripts (`iplayer.sh`, `iplayertoplex.sh`, `iplayertagger.sh`, `iplayerfaultfinder.sh`) that rename and file downloads into a folder structure that Plex (or Jellyfin, Emby, etc.) can scrape on its own. No iTunes-specific tagging, no re-encoding.
+- **iTunes (legacy)** — the original `iimport` script, which handles a much more involved import into iTunes, including metadata tagging via AtomicParsley and optional re-encoding for older Apple TVs via HandBrake.
+
+Following the discontinuation of iTunes with macOS 10.15 Catalina, I moved on to Plex as my home media server, so the iTunes path is no longer actively developed — it's kept here for reference and for anyone still running iTunes. New work happens on the Plex scripts.
+
+Pick the section below that matches what you're using.
+
+
+Plex (or other media server)
+=============================
+
+Details
+-------
+
+get_iplayer does the fetching; these scripts just take what it downloads and rename/move it into a library layout that a media server can scrape unassisted:
+
+- **`iplayer.sh`** — a thin wrapper around `get_iplayer`. Supports a quick PVR adder (`iplayer.sh add <type> "<name>"`), a `pids` helper for pulling programme PIDs from a BBC iPlayer URL, a `pvr` mode that runs a PVR scan, and otherwise passes any other arguments straight through to `get_iplayer`.
+- **`iplayertoplex.sh`** — the script get_iplayer calls (via the `command` option, see below) once a download finishes. It works out whether the download is a film, a TV episode, or a radio programme, builds an appropriate destination path/filename, adjusts embedded metadata as needed (see below), and moves the file into place.
+  - Films go to `<films>/<Name> (<year>)/<Name> (<year>).<ext>`, with the release year sourced from the BBC programme page or, if you provide an OMDb API key (see below), from OMDb. Metadata is stripped entirely (`--metaEnema`) so Plex looks up its own info rather than trusting whatever get_iplayer embedded.
+  - TV episodes go to `<tv>/<Name>/Season <NN>/<Name> - sNNeNN - <Episode> (<resolution>p).<ext>` (or a `Specials` folder when there's no series number). The programme PID is written into the (otherwise unused) keyword tag so it can be recovered later.
+  - Radio goes to `<radio>/<Name>/<Name> - <first broadcast date> - <Episode>.<ext>`. The album artist tag is cleared, since get_iplayer always sets it to "BBC Radio", which otherwise overrides the actual station Plex would show.
+  - `<films>`, `<radio>` and `<tv>` are each independent, full paths — they don't have to live under a shared root, so it's fine to point them at different volumes/libraries.
+- **`iplayertagger.sh`** — a cleanup pass for a whole directory: finds files missing the PID keyword tag and recovers/reapplies it from mediainfo's embedded playlist URL.
+- **`iplayerfaultfinder.sh`** — a cleanup pass for a whole directory: strips stray `[...]` filename artefacts, flags/deletes files with unreadable or missing video, tags filenames with a detected resolution when missing, and removes lower-resolution duplicates when a higher-resolution copy of the same file already exists.
+
+An optional `omdbapikey.txt` file, placed alongside `iplayertoplex.sh`, can hold an [OMDb](https://www.omdbapi.com/) API key used as a fallback for film release years when the BBC programme page doesn't have one.
+
+
+Dependencies
+------------
+
+- get_iplayer
+
+  http://git.infradead.org/get_iplayer.git
+
+- AtomicParsley, mediainfo, jq
+
+      brew install atomicparsley mediainfo jq
+
+
+Installation
+------------
+
+1. Install get_iplayer, AtomicParsley, mediainfo and jq, and note their paths (the scripts assume Homebrew's Apple Silicon prefix, `/opt/homebrew/bin`, by default — adjust the paths at the top of each script if yours differs).
+2. Copy `iplayer.sh`, `iplayertoplex.sh`, `iplayertagger.sh` and `iplayerfaultfinder.sh` somewhere convenient and make sure they're executable (`chmod +x`).
+3. Run get_iplayer at least once to have it set up its folders, settings and plugins.
+4. Set the contents of `~/.get_iplayer/options` to something like this, adjusting paths and the `Films`/`Radio`/`Shows` folder names for your own library layout:
+
+       type all
+       output /tmp/iplayer
+       fileprefix <pid>
+       tvmode fhd,hd,sd
+       radiomode high,std
+       thumbsize 1920
+       atomicparsley /opt/homebrew/bin/AtomicParsley
+       ffmpeg /opt/homebrew/bin/ffmpeg
+       whitespace 1
+       nocopyright 1
+       nopurge 1
+       command "/path/to/iplayertoplex.sh" "<pid>" "<filename>" "<type>" "<nameshort>" "<episodeshort>" "<firstbcastdate>" "<seriesnum>" "<episodenum>" "/path/to/Films" "/path/to/Radio" "/path/to/Shows"
+
+   The last three arguments to `command` are positional: the full destination paths for films, radio and TV respectively. They're independent of each other, so feel free to point them at different volumes or libraries.
+5. Trigger a periodic PVR scan with cron (or launchd, if you prefer). For example, to scan every hour at 41 minutes past:
+
+       41 * * * * "/path/to/iplayer.sh" pvr &> /tmp/iplayer.log
+
+That's it — get_iplayer fetches new PVR content on its own schedule, and hands each finished download to `iplayertoplex.sh` to file into your library.
+
+
+iTunes (legacy)
+================
+
 iImport is a script that automatically imports video content fetched by get_iplayer into iTunes, optionally re-encoding it with Handbrake for compatibility with the Apple TV. The script is designed to run on Mac OS X v10.6.8 or higher.
 
-**NOTE:** Following the discontinuation of iTunes with macOS 10.15 Catalina I've taken the decision to move on to Plex as my home media server. While iImport still works just fine, I'm unlikely to update this in the future. I'll be continuing to use it while I devise a means of switching to Plex.
+**NOTE:** Following the discontinuation of iTunes with macOS 10.15 Catalina I've taken the decision to move on to Plex as my home media server (see above). While iImport still works just fine, I'm unlikely to update this in the future.
 
 Details
 -------
@@ -89,7 +163,20 @@ By default, the iImport script and the dependencies should live in /usr/local/bi
 
 1. Install required components into /usr/local/bin and ensure that they have execute permissions.
 2. Run get_iplayer at least once to have it set up appropriate folders, settings and plugins.
-3. Incorporate the contents of the *options* file into your ~/.get_iplayer/options 
+3. Set the contents of `~/.get_iplayer/options` to:
+
+       versionlist default
+       fileprefix <type>_<pid>_iplayer
+       atomicparsley /usr/local/bin/AtomicParsley
+       ffmpeg /usr/local/bin/ffmpeg
+       nopurge 1
+       output /tmp/iimport
+       type tv
+       modes tvbest,radiobest
+       thumbsize 640
+       nocopyright 1
+       command /usr/local/bin/iimport download
+
 4. Ensure that the 'Copy files to iTunes Media Folder' option in the *Advanced* section of iTunes Preferences is *enabled*.
 
 That should have you up and running. To run iImport automatically at set intervals to fetch content in your PVR list:
@@ -118,4 +205,3 @@ The locations of the output directory that get_iplayer uses and the location of 
 
 
 Enjoy!
-
