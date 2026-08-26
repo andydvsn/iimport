@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 
-## iplayer.sh v1.02 (21st September 2021) by Andrew Davison
+## iplayer.sh v1.04 (27th August 2026) by Andrew Davison
 ##  A cozy layer in front of get_iplayer.
 
 get_iplayer="/opt/homebrew/bin/get_iplayer"
+jq="/opt/homebrew/bin/jq"
 
 if [[ "$1" == "add" ]]; then
 	# Really quick PVR adder.
@@ -28,42 +29,109 @@ if [[ "$1" == "add" ]]; then
 
 elif [[ "$1" == "pids" ]]; then
 
-	if [ $# -ne 2 ]; then
+	shift
+	getflag=0
+	posargs=()
+	for arg in "$@"; do
+		if [[ "$arg" == "--get" ]]; then
+			getflag=1
+		else
+			posargs+=("$arg")
+		fi
+	done
 
-		echo "Usage: $0 [pids] <url>"
+	if [ ${#posargs[@]} -lt 1 ] || [ ${#posargs[@]} -gt 2 ]; then
+
+		echo "Usage: $0 pids [--get] <seriesid> [seriesnum]"
 		exit 1
 
 	else
 
-		related=$(curl --silent "$2" | grep "tvip-script-app-store")
+		seriesid="${posargs[0]}"
+		seriesnum="${posargs[1]}"
+		baseurl="https://www.bbc.co.uk/iplayer/episodes/$seriesid"
+		pidscsv=""
 
-		IFS=','
-		read -a strarr <<< "$related"
+		# Pulls the embedded page state out of the iPlayer HTML and hands back its JSON.
+		fetchstate() {
 
-		title=""
-		subtitle=""
-		pids=""
+			curl --silent --location "$1" | grep -o 'id="tvip-script-app-store">window.__IPLAYER_REDUX_STATE__ = .*' | sed -e 's/^.*window.__IPLAYER_REDUX_STATE__ = //' -e 's/;<\/script>.*$//'
 
-		for val in "${strarr[@]}";
-		do
+		}
 
-			if [[ "$val" =~ '"title":"' ]]; then
+		state=$(fetchstate "$baseurl")
 
-				title=$(echo "$val" | awk -F\title\":\" {'print $2'} | awk -F\" {'print $1'})
+		if [[ "$state" == "" ]]; then
+			echo "Could not retrieve iPlayer data for '$seriesid'. Check the series ID and try again." >&2
+			exit 1
+		fi
 
+		progtitle=$($jq -r '.header.title' <<< "$state")
+		echo "$(date  +'%Y-%m-%d %H:%M:%S') : INFO : $progtitle" >&2
+
+		# The available series (ignoring the Trailers / More Like This slices).
+		sliceids=()
+		slicetitles=()
+		while IFS=$'\t' read -r sid stitle; do
+			sliceids+=("$sid")
+			slicetitles+=("$stitle")
+		done < <($jq -r '.header.availableSlices[] | select(.title | test("^Series [0-9]+$")) | [.id, .title] | @tsv' <<< "$state")
+
+		if [[ "$seriesnum" != "" ]]; then
+
+			target=""
+			for i in "${!slicetitles[@]}"; do
+				[[ "${slicetitles[$i]}" == "Series $seriesnum" ]] && target="${sliceids[$i]}"
+			done
+
+			if [[ "$target" == "" ]]; then
+				echo "$(date  +'%Y-%m-%d %H:%M:%S') : WARN : Series $seriesnum was not found for '$seriesid'." >&2
+				exit 1
 			fi
 
-			if [[ "$val" =~ '{"episode":{"id":' ]]; then
+			sliceids=("$target")
+			slicetitles=("Series $seriesnum")
 
-				onepid=$(echo "$val" | awk -F\id\":\" {'print $2'} | awk -F\" {'print $1'})
-				pids="$pids,$onepid"
+		fi
 
-			fi
+		for i in "${!sliceids[@]}"; do
+
+			sliceid="${sliceids[$i]}"
+			slicetitle="${slicetitles[$i]}"
+
+			echo "$(date  +'%Y-%m-%d %H:%M:%S') : INFO : $slicetitle" >&2
+
+			page=1
+			totalpages=1
+
+			while [ $page -le $totalpages ]; do
+
+				pagestate=$(fetchstate "$baseurl?seriesId=$sliceid&page=$page")
+				totalpages=$($jq -r '.pagination.totalPages // 1' <<< "$pagestate")
+
+				while IFS=$'\t' read -r pid subtitle; do
+					echo -e "$pid\t$subtitle"
+					pidscsv="$pidscsv,$pid"
+				done < <($jq -r '.entities.results[] | [.episode.id, (.episode.subtitle.default // .episode.subtitle.slice // "")] | @tsv' <<< "$pagestate")
+
+				page=$((page+1))
+
+			done
 
 		done
 
-		echo $title
-		echo "${pids:1}"
+		if [ $getflag -eq 1 ]; then
+
+			pidscsv="${pidscsv:1}"
+
+			if [[ "$pidscsv" != "" ]]; then
+				echo "$(date  +'%Y-%m-%d %H:%M:%S') : INFO : Downloading ${pidscsv//,/, }..." >&2
+				$get_iplayer --get --pids "$pidscsv"
+			else
+				echo "$(date  +'%Y-%m-%d %H:%M:%S') : WARN : No PIDs resolved, nothing to download." >&2
+			fi
+
+		fi
 
 	fi
 

@@ -19,7 +19,7 @@ Details
 
 get_iplayer does the fetching; these scripts just take what it downloads and rename/move it into a library layout that a media server can scrape unassisted:
 
-- **`iplayer.sh`** — a thin wrapper around `get_iplayer`. Supports a quick PVR adder (`iplayer.sh add <type> "<name>"`), a `pids` helper for pulling programme PIDs from a BBC iPlayer URL, a `pvr` mode that runs a PVR scan, and otherwise passes any other arguments straight through to `get_iplayer`.
+- **`iplayer.sh`** — a thin wrapper around `get_iplayer`. Supports a quick PVR adder (`iplayer.sh add <type> "<name>"`), a `pids` helper (`iplayer.sh pids [--get] <seriesid> [seriesnum]`) for resolving all episode PIDs of a BBC iPlayer series — e.g. `iplayer.sh pids b0b056g3` prints every episode PID across all series, or `iplayer.sh pids b0b056g3 3` narrows it to just series 3 — useful because get_iplayer's own programme cache can miss or misfile older episodes, but it can always fetch a known PID directly. Add `--get` (in any position) to have it hand the resolved PIDs straight to `get_iplayer --get --pids <pid1,pid2,...>` instead of just printing them. There's also a `pvr` mode that runs a PVR scan, and otherwise any other arguments are passed straight through to `get_iplayer`.
 - **`iplayertoplex.sh`** — the script get_iplayer calls (via the `command` option, see below) once a download finishes. It works out whether the download is a film, a TV episode, or a radio programme, builds an appropriate destination path/filename, adjusts embedded metadata as needed (see below), and moves the file into place.
   - Films go to `<films>/<Name> (<year>)/<Name> (<year>).<ext>`, with the release year sourced from the BBC programme page or, if you provide an OMDb API key (see below), from OMDb. Metadata is stripped entirely (`--metaEnema`) so Plex looks up its own info rather than trusting whatever get_iplayer embedded.
   - TV episodes go to `<tv>/<Name>/Season <NN>/<Name> - sNNeNN - <Episode> (<resolution>p).<ext>` (or a `Specials` folder when there's no series number). The programme PID is written into the (otherwise unused) keyword tag so it can be recovered later.
@@ -49,7 +49,7 @@ Installation
 1. Install get_iplayer, AtomicParsley, mediainfo and jq, and note their paths (the scripts assume Homebrew's Apple Silicon prefix, `/opt/homebrew/bin`, by default — adjust the paths at the top of each script if yours differs).
 2. Copy `iplayer.sh`, `iplayertoplex.sh`, `iplayertagger.sh` and `iplayerfaultfinder.sh` somewhere convenient and make sure they're executable (`chmod +x`).
 3. Run get_iplayer at least once to have it set up its folders, settings and plugins.
-4. Set the contents of `~/.get_iplayer/options` to something like this, adjusting paths and the `Films`/`Radio`/`Shows` folder names for your own library layout:
+4. Set the contents of `~/.get_iplayer/options` to something like this, adjusting paths for your own library layout:
 
        type all
        output /tmp/iplayer
@@ -62,9 +62,9 @@ Installation
        whitespace 1
        nocopyright 1
        nopurge 1
-       command "/path/to/iplayertoplex.sh" "<pid>" "<filename>" "<type>" "<nameshort>" "<episodeshort>" "<firstbcastdate>" "<seriesnum>" "<episodenum>" "/path/to/Films" "/path/to/Radio" "/path/to/Shows"
+       command "/path/to/iplayertoplex.sh" "<pid>" "<filename>" "<type>" "<nameshort>" "<episodeshort>" "<firstbcastdate>" "<seriesnum>" "<episodenum>" "/Volumes/Bay 2/Servers/Media/Films" "/Volumes/Bay 2/Servers/Media/Radio" "/Volumes/Bay 1/Servers/Media/Shows"
 
-   The last three arguments to `command` are positional: the full destination paths for films, radio and TV respectively. They're independent of each other, so feel free to point them at different volumes or libraries.
+   The last three arguments to `command` are positional: the full destination paths for films, radio and TV respectively. They're independent of each other, so feel free to point them at different volumes or libraries — the example above keeps films and radio on one volume and shows on another.
 5. Trigger a periodic PVR scan with cron (or launchd, if you prefer). For example, to scan every hour at 41 minutes past:
 
        41 * * * * "/path/to/iplayer.sh" pvr &> /tmp/iplayer.log
