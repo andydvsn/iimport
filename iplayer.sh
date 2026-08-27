@@ -126,7 +126,7 @@ elif [[ "$1" == "pids" ]]; then
 
 			if [[ "$pidscsv" != "" ]]; then
 				echo "$(date  +'%Y-%m-%d %H:%M:%S') : INFO : Downloading ${pidscsv//,/, }..." >&2
-				$get_iplayer --get --pids "$pidscsv"
+				$get_iplayer --get --pid "$pidscsv"
 			else
 				echo "$(date  +'%Y-%m-%d %H:%M:%S') : WARN : No PIDs resolved, nothing to download." >&2
 			fi
