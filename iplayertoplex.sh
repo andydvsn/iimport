@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## iplayertoplex.sh v1.07 (26th August 2026) by Andrew Davison
+## iplayertoplex.sh v1.08 (27th August 2026) by Andrew Davison
 ##  Take downloaded content from get_iplayer and fumble it into Plex.
 
 debug=0
@@ -8,6 +8,7 @@ debug=0
 ###
 atomicparsley="/opt/homebrew/bin/AtomicParsley"
 bbcurl="https://www.bbc.co.uk/programmes"
+iplayerurl="https://www.bbc.co.uk/iplayer/episode"
 jq="/opt/homebrew/bin/jq"
 mediainfo="/opt/homebrew/bin/mediainfo"
 ###
@@ -26,7 +27,22 @@ films="${9}"
 radio="${10}"
 tv="${11}"
 
-[[ "$episodeshort" == "" ]] && [[ "$nameshort" != "" ]] && type="film"
+if [[ "$episodeshort" == "" ]] && [[ "$nameshort" != "" ]]; then
+
+	# No episode title means this is either a genuine film or a one-off documentary that iPlayer
+	# doesn't give an episode title either. Check iPlayer's own genre classification to tell them
+	# apart; a false negative here (a documentary that slips through as a film) is expected, but
+	# this at least catches the common case.
+	genre=$(curl -sL "$iplayerurl/$pid" | grep -o 'id="tvip-enhanced-seo-metadata">.*</script>' | head -1 | sed -e 's#.*id="tvip-enhanced-seo-metadata">##' -e 's#</script>##' | $jq -r '.[0].genre // empty' 2>/dev/null)
+
+	if [[ "$genre" == *"Documentary"* ]]; then
+		# Keep it a TV special under its own show folder instead of the films bucket.
+		episodeshort="$nameshort"
+	else
+		type="film"
+	fi
+
+fi
 [[ "${#seriesnum}" -eq 1 ]] && seriesnum="0$seriesnum"
 [[ "${#episodenum}" -eq 1 ]] && episodenum="0$episodenum"
 
@@ -41,6 +57,7 @@ echo
 echo "pid                : $pid"
 echo "filename           : $filename"
 echo "type               : $type"
+[[ -n "${genre+x}" ]] && echo "genre              : $genre"
 echo "nameshort          : $nameshort"
 echo "safenameshort      : $safenameshort"		
 echo "episodeshort       : $episodeshort"
