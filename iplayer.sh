@@ -79,19 +79,24 @@ elif [[ "$1" == "pids" ]]; then
 			slicetitles+=("$stitle")
 		done < <($jq -r '.header.availableSlices[] | select(.title | test("^Series [0-9A-Za-z]+$")) | [.id, .title] | @tsv' <<< "$state")
 
-		# A lettered series' iPlayer title doesn't tell you its plain series number --
-		# that's not simply alphabet position (letters can be skipped/reused down the
-		# years). The BBC's own programmes API knows the real number regardless of the
-		# display letter, via the parent series' "position" field. Same source
-		# get_iplayer itself trusts, so this stays consistent with how existing imports
-		# already got numbered.
+		# A lettered series' plain number is its alphabet position (A=1, B=2, ...),
+		# matching TVDB's own convention for shows like this (verified against QI XL:
+		# TVDB Season 13/18/19 are Series M/R/S respectively). Deliberately NOT using
+		# the BBC's own internal series "position" metadata here (what get_iplayer
+		# itself relies on) -- that field runs one series ahead of the plain alphabet
+		# count for QI, for reasons on the BBC's end, and get_iplayer just relays it
+		# uncorrected. Since Plex/TVDB is what actually matters for our library, we
+		# override the BBC's number rather than propagate its mislabelling further.
 		resolveslicenum() {
 
-			local sliceid="$1"
-			local firstpid
-			firstpid=$($jq -r '.entities.results[0].episode.id // empty' <<< "$(fetchstate "$baseurl?seriesId=$sliceid&page=1")")
-			[[ "$firstpid" == "" ]] && return
-			curl --silent "https://www.bbc.co.uk/programmes/$firstpid.json" | $jq -r '.programme.parent.programme.position // empty'
+			local letters="$1"
+			letters=$(tr '[:lower:]' '[:upper:]' <<< "$letters")
+			local num=0 i c
+			for (( i=0; i<${#letters}; i++ )); do
+				c="${letters:$i:1}"
+				num=$(( num * 26 + ( $(printf '%d' "'$c") - 64 ) ))
+			done
+			echo "$num"
 
 		}
 
@@ -109,8 +114,8 @@ elif [[ "$1" == "pids" ]]; then
 
 			if [[ "$target" == "" ]]; then
 				for i in "${!slicetitles[@]}"; do
-					[[ "${slicetitles[$i]}" =~ ^Series\ [A-Za-z]+$ ]] || continue
-					realnum=$(resolveslicenum "${sliceids[$i]}")
+					[[ "${slicetitles[$i]}" =~ ^Series\ ([A-Za-z]+)$ ]] || continue
+					realnum=$(resolveslicenum "${BASH_REMATCH[1]}")
 					if [[ "$realnum" == "$seriesnum" ]]; then
 						target="${sliceids[$i]}"
 						targettitle="${slicetitles[$i]}"
