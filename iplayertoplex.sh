@@ -186,11 +186,15 @@ if [[ "$filename" != "" ]] && [[ "$destination_dir" != "" ]] && [[ "$destination
 	if [[ "$debug" != "1" ]]; then
 		echo
 		echo
-		mv -v "$filename" "$destination_path"
+		if cp -v "$filename" "$destination_path"; then
+			rm "$filename"
+		else
+			echo "WARNING: copy failed, leaving '$filename' in place." >&2
+		fi
 	else
 		echo " not really, we're in debug mode!"
 		echo
-		echo "mv \"$filename\" \"$destination_path\""
+		echo "cp \"$filename\" \"$destination_path\" && rm \"$filename\""
 	fi
 
 else
