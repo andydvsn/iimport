@@ -27,6 +27,26 @@ films="${9}"
 radio="${10}"
 tv="${11}"
 
+# Some shows (QI, notably) use lettered series on iPlayer ("Series S") instead of
+# numbered ones. get_iplayer resolves seriesnum for these from the BBC's own internal
+# series "position" metadata, which runs one series ahead of the plain alphabet-position
+# convention TVDB (and thus Plex) actually uses -- verified against QI XL, where TVDB's
+# Season 19 is "Series S" (S being the 19th letter), not the BBC's own position of 20.
+# get_iplayer already tags the file with this before calling us (its own "tvsh"/"©alb"
+# atom, e.g. "QI XL: Series R") -- read it straight back out rather than re-fetch it.
+series=$($atomicparsley "$filename" -t 2>/dev/null | grep '^Atom "tvsh" contains:' | sed 's/^Atom "tvsh" contains: //' | sed 's/^.*: //')
+if [[ "$series" =~ ^Series\ ([A-Za-z]+)$ ]]; then
+
+	letters=$(tr '[:lower:]' '[:upper:]' <<< "${BASH_REMATCH[1]}")
+	alphanum=0
+	for (( i=0; i<${#letters}; i++ )); do
+		c="${letters:$i:1}"
+		alphanum=$(( alphanum * 26 + ( $(printf '%d' "'$c") - 64 ) ))
+	done
+	seriesnum="$alphanum"
+
+fi
+
 if [[ "$episodeshort" == "" ]] && [[ "$nameshort" != "" ]]; then
 
 	# No episode title means this is either a genuine film or a one-off documentary that iPlayer
@@ -63,6 +83,7 @@ echo "safenameshort      : $safenameshort"
 echo "episodeshort       : $episodeshort"
 echo "safeepisodeshort   : $safeepisodeshort"
 echo "firstbcastdate     : $firstbcastdate"
+echo "series             : $series"
 echo "seriesnum          : $seriesnum"
 echo "episodenum         : $episodenum"
 echo "films              : $films"
