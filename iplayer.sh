@@ -31,10 +31,13 @@ elif [[ "$1" == "pids" ]]; then
 
 	shift
 	getflag=0
+	forceflag=0
 	posargs=()
 	for arg in "$@"; do
 		if [[ "$arg" == "--get" ]]; then
 			getflag=1
+		elif [[ "$arg" == "--force" ]]; then
+			forceflag=1
 		else
 			posargs+=("$arg")
 		fi
@@ -42,7 +45,7 @@ elif [[ "$1" == "pids" ]]; then
 
 	if [ ${#posargs[@]} -lt 1 ] || [ ${#posargs[@]} -gt 2 ]; then
 
-		echo "Usage: $0 pids [--get] <seriesid> [seriesnum]"
+		echo "Usage: $0 pids [--get] [--force] <seriesid> [seriesnum]"
 		exit 1
 
 	else
@@ -170,7 +173,9 @@ elif [[ "$1" == "pids" ]]; then
 
 			if [[ "$pidscsv" != "" ]]; then
 				echo "$(date  +'%Y-%m-%d %H:%M:%S') : INFO : Downloading ${pidscsv//,/, }..." >&2
-				$get_iplayer --get --pid "$pidscsv"
+				forceargs=()
+				[ $forceflag -eq 1 ] && forceargs=(--force)
+				$get_iplayer --get "${forceargs[@]}" --pid "$pidscsv"
 			else
 				echo "$(date  +'%Y-%m-%d %H:%M:%S') : WARN : No PIDs resolved, nothing to download." >&2
 			fi
