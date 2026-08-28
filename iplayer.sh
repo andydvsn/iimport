@@ -70,19 +70,54 @@ elif [[ "$1" == "pids" ]]; then
 		echo "$(date  +'%Y-%m-%d %H:%M:%S') : INFO : $progtitle" >&2
 
 		# The available series (ignoring the Trailers / More Like This slices).
+		# Titles are usually "Series <number>", but some shows (QI, notably) use
+		# lettered series on iPlayer ("Series S") instead -- keep those too.
 		sliceids=()
 		slicetitles=()
 		while IFS=$'\t' read -r sid stitle; do
 			sliceids+=("$sid")
 			slicetitles+=("$stitle")
-		done < <($jq -r '.header.availableSlices[] | select(.title | test("^Series [0-9]+$")) | [.id, .title] | @tsv' <<< "$state")
+		done < <($jq -r '.header.availableSlices[] | select(.title | test("^Series [0-9A-Za-z]+$")) | [.id, .title] | @tsv' <<< "$state")
+
+		# A lettered series' iPlayer title doesn't tell you its plain series number --
+		# that's not simply alphabet position (letters can be skipped/reused down the
+		# years). The BBC's own programmes API knows the real number regardless of the
+		# display letter, via the parent series' "position" field. Same source
+		# get_iplayer itself trusts, so this stays consistent with how existing imports
+		# already got numbered.
+		resolveslicenum() {
+
+			local sliceid="$1"
+			local firstpid
+			firstpid=$($jq -r '.entities.results[0].episode.id // empty' <<< "$(fetchstate "$baseurl?seriesId=$sliceid&page=1")")
+			[[ "$firstpid" == "" ]] && return
+			curl --silent "https://www.bbc.co.uk/programmes/$firstpid.json" | $jq -r '.programme.parent.programme.position // empty'
+
+		}
 
 		if [[ "$seriesnum" != "" ]]; then
 
 			target=""
+			targettitle=""
 			for i in "${!slicetitles[@]}"; do
-				[[ "${slicetitles[$i]}" == "Series $seriesnum" ]] && target="${sliceids[$i]}"
+				if [[ "${slicetitles[$i]}" == "Series $seriesnum" ]]; then
+					target="${sliceids[$i]}"
+					targettitle="${slicetitles[$i]}"
+					break
+				fi
 			done
+
+			if [[ "$target" == "" ]]; then
+				for i in "${!slicetitles[@]}"; do
+					[[ "${slicetitles[$i]}" =~ ^Series\ [A-Za-z]+$ ]] || continue
+					realnum=$(resolveslicenum "${sliceids[$i]}")
+					if [[ "$realnum" == "$seriesnum" ]]; then
+						target="${sliceids[$i]}"
+						targettitle="${slicetitles[$i]}"
+						break
+					fi
+				done
+			fi
 
 			if [[ "$target" == "" ]]; then
 				echo "$(date  +'%Y-%m-%d %H:%M:%S') : WARN : Series $seriesnum was not found for '$seriesid'." >&2
@@ -90,7 +125,11 @@ elif [[ "$1" == "pids" ]]; then
 			fi
 
 			sliceids=("$target")
-			slicetitles=("Series $seriesnum")
+			if [[ "$targettitle" == "Series $seriesnum" ]]; then
+				slicetitles=("Series $seriesnum")
+			else
+				slicetitles=("Series $seriesnum ($targettitle)")
+			fi
 
 		fi
 
