@@ -45,7 +45,7 @@ elif [[ "$1" == "pids" ]]; then
 
 	if [ ${#posargs[@]} -lt 1 ] || [ ${#posargs[@]} -gt 2 ]; then
 
-		echo "Usage: $0 pids [--get] [--force] <seriesid> [seriesnum]"
+		echo "Usage: $0 pids [--get] [--force] <seriesid> [seriesnum|start-end]"
 		exit 1
 
 	else
@@ -103,12 +103,15 @@ elif [[ "$1" == "pids" ]]; then
 
 		}
 
-		if [[ "$seriesnum" != "" ]]; then
+		# Finds the slice for a single plain series number, checking a direct numeric
+		# title match first, then falling back to lettered-series resolution. Echoes
+		# back "sliceid<TAB>displaytitle" on success, nothing on failure.
+		resolveseriesslice() {
 
-			target=""
-			targettitle=""
+			local num="$1" i target="" targettitle=""
+
 			for i in "${!slicetitles[@]}"; do
-				if [[ "${slicetitles[$i]}" == "Series $seriesnum" ]]; then
+				if [[ "${slicetitles[$i]}" == "Series $num" ]]; then
 					target="${sliceids[$i]}"
 					targettitle="${slicetitles[$i]}"
 					break
@@ -118,8 +121,9 @@ elif [[ "$1" == "pids" ]]; then
 			if [[ "$target" == "" ]]; then
 				for i in "${!slicetitles[@]}"; do
 					[[ "${slicetitles[$i]}" =~ ^Series\ ([A-Za-z]+)$ ]] || continue
+					local realnum
 					realnum=$(resolveslicenum "${BASH_REMATCH[1]}")
-					if [[ "$realnum" == "$seriesnum" ]]; then
+					if [[ "$realnum" == "$num" ]]; then
 						target="${sliceids[$i]}"
 						targettitle="${slicetitles[$i]}"
 						break
@@ -127,17 +131,50 @@ elif [[ "$1" == "pids" ]]; then
 				done
 			fi
 
-			if [[ "$target" == "" ]]; then
-				echo "$(date  +'%Y-%m-%d %H:%M:%S') : WARN : Series $seriesnum was not found for '$seriesid'." >&2
+			[[ "$target" == "" ]] && return 1
+
+			if [[ "$targettitle" == "Series $num" ]]; then
+				echo -e "$target\tSeries $num"
+			else
+				echo -e "$target\tSeries $num ($targettitle)"
+			fi
+
+		}
+
+		if [[ "$seriesnum" != "" ]]; then
+
+			if [[ "$seriesnum" =~ ^([0-9]+)-([0-9]+)$ ]]; then
+				rangestart="${BASH_REMATCH[1]}"
+				rangeend="${BASH_REMATCH[2]}"
+			else
+				rangestart="$seriesnum"
+				rangeend="$seriesnum"
+			fi
+
+			if [ "$rangestart" -gt "$rangeend" ]; then
+				echo "$(date  +'%Y-%m-%d %H:%M:%S') : WARN : Range '$seriesnum' is backwards -- start must not be greater than end." >&2
 				exit 1
 			fi
 
-			sliceids=("$target")
-			if [[ "$targettitle" == "Series $seriesnum" ]]; then
-				slicetitles=("Series $seriesnum")
-			else
-				slicetitles=("Series $seriesnum ($targettitle)")
+			newsliceids=()
+			newslicetitles=()
+			for (( num=rangestart; num<=rangeend; num++ )); do
+				resolved=$(resolveseriesslice "$num") || {
+					echo "$(date  +'%Y-%m-%d %H:%M:%S') : WARN : Series $num was not found for '$seriesid'." >&2
+					continue
+				}
+				IFS=$'\t' read -r rid rtitle <<< "$resolved"
+				newsliceids+=("$rid")
+				newslicetitles+=("$rtitle")
+			done
+
+			if [ ${#newsliceids[@]} -eq 0 ]; then
+				echo "$(date  +'%Y-%m-%d %H:%M:%S') : WARN : None of series $seriesnum were found for '$seriesid'." >&2
+				exit 1
 			fi
+
+			sliceids=("${newsliceids[@]}")
+			slicetitles=("${newslicetitles[@]}")
 
 		fi
 
