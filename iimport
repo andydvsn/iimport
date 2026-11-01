@@ -715,7 +715,7 @@ if [[ "$1" == "agent" || "$1" == "download" || "$1" == "" ]]; then
 	# Create a lockfile so agent requests can't run over us.
 	touch $IITMP/iimport_lock
 
-	for i in `ls -1 /tmp/iimport | grep "\.mp4\|\.m4a" | grep -v "\.flv"`; do
+	for i in `ls -1 $IITMP | grep "\.mp4\|\.m4a" | grep -v "\.flv"`; do
 
 		NEWFILE=$i
 

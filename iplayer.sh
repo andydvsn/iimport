@@ -1,10 +1,31 @@
 #!/usr/bin/env bash
 
-## iplayer.sh v1.04 (27th August 2026) by Andrew Davison
+## iplayer.sh v1.05 (1st November 2026) by Andrew Davison
 ##  A cozy layer in front of get_iplayer.
 
 get_iplayer="/opt/local/bin/get_iplayer"
 jq="/opt/homebrew/bin/jq"
+
+# Downloads land in get_iplayer's output folder(s) before being filed away. When that's on an
+# external drive which isn't mounted, writing to /Volumes/<drive> would quietly create a plain
+# folder on the internal disk instead -- so refuse to download until the drive is back.
+checkoutput() {
+
+	local options="/Users/$USER/.get_iplayer/options" dir vol status=0
+	[ -f "$options" ] || return 0
+
+	while IFS= read -r dir; do
+		[[ "$dir" =~ ^/Volumes/([^/]+) ]] || continue
+		vol="/Volumes/${BASH_REMATCH[1]}"
+		if ! mount | grep -qF " on $vol ("; then
+			echo "$(date  +'%Y-%m-%d %H:%M:%S') : WARN : '$vol' is not mounted, so not downloading to '$dir'." >&2
+			status=1
+		fi
+	done < <(tr -d '\r' < "$options" | sed -n -E 's/^output(tv|radio)?[[:space:]]+//p' | sed -E 's/[[:space:]]+$//')
+
+	return $status
+
+}
 
 if [[ "$1" == "add" ]]; then
 	# Really quick PVR adder.
@@ -209,6 +230,7 @@ elif [[ "$1" == "pids" ]]; then
 			pidscsv="${pidscsv:1}"
 
 			if [[ "$pidscsv" != "" ]]; then
+				checkoutput || exit 1
 				echo "$(date  +'%Y-%m-%d %H:%M:%S') : INFO : Downloading ${pidscsv//,/, }..." >&2
 				forceargs=()
 				[ $forceflag -eq 1 ] && forceargs=(--force)
@@ -223,6 +245,7 @@ elif [[ "$1" == "pids" ]]; then
 
 elif [[ "$1" == "pvr" ]]; then
 
+	checkoutput || exit 1
 	echo
 	echo "$(date  +'%Y-%m-%d %H:%M:%S') : INFO : Scan starting!"
 	echo
@@ -233,7 +256,12 @@ elif [[ "$1" == "pvr" ]]; then
 
 else
 
-	# Otherwise pass everything through to the real thing.
+	# Otherwise pass everything through to the real thing (checking the drive first if it's a download).
+	for arg in "$@"; do
+		case "$arg" in
+			-g|--get|--pid|--pid=*|--pvr|--pvr=*|--url|--url=*) checkoutput || exit 1; break ;;
+		esac
+	done
 	$get_iplayer "$@"
 	echo
 

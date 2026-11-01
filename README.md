@@ -53,7 +53,7 @@ Installation
 4. Set the contents of `~/.get_iplayer/options` to something like this, adjusting paths for your own library layout:
 
        type all
-       output /tmp/iplayer
+       output /Volumes/Bay 1/Servers/Downloads/iplayer
        fileprefix <pid>
        tvmode fhd,hd,sd
        radiomode high,std
@@ -66,6 +66,9 @@ Installation
        command "/path/to/iplayertoplex.sh" "<pid>" "<filename>" "<type>" "<nameshort>" "<episodeshort>" "<firstbcastdate>" "<seriesnum>" "<episodenum>" "/Volumes/Bay 2/Servers/Media/Films" "/Volumes/Bay 2/Servers/Media/Radio" "/Volumes/Bay 1/Servers/Media/Shows"
 
    The last three arguments to `command` are positional: the full destination paths for films, radio and TV respectively. They're independent of each other, so feel free to point them at different volumes or libraries — the example above keeps films and radio on one volume and shows on another.
+
+   Keep `output` on one of your library drives rather than `/tmp`, and outside any folder your media server scans. Every download (and ffmpeg's remux of it, and the AtomicParsley retag) is written there in full, so on `/tmp` that's several gigabytes of writes to the internal SSD per episode. When `output` is on the same volume as the destination, the final move is an instant rename instead of another full copy. If radio and films live on a different drive, get_iplayer's `outputradio` option can give radio its own download folder on that drive. If a drive under `/Volumes` isn't mounted, `iplayer.sh` won't start a download and `iplayertoplex.sh` won't file anything, so nothing quietly ends up on the internal disk.
+
 5. Trigger a periodic PVR scan with cron (or launchd, if you prefer). For example, to scan every hour at 41 minutes past:
 
        41 * * * * "/path/to/iplayer.sh" pvr &> /tmp/iplayer.log

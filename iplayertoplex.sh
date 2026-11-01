@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## iplayertoplex.sh v1.08 (27th August 2026) by Andrew Davison
+## iplayertoplex.sh v1.09 (1st November 2026) by Andrew Davison
 ##  Take downloaded content from get_iplayer and fumble it into Plex.
 
 debug=0
@@ -180,21 +180,34 @@ echo
 
 if [[ "$filename" != "" ]] && [[ "$destination_dir" != "" ]] && [[ "$destination_filename" != "" ]] && [[ "$destination_path" != "" ]]; then
 
-	echo -n "Moving '$destination_filename'..."
-	mkdir -p "$destination_dir"
+	# If the library drive isn't mounted, mkdir would create a plain folder under /Volumes on the
+	# internal disk and the file would be filed there instead. Leave it where it is.
+	destination_volume=""
+	[[ "$destination_dir" =~ ^(/Volumes/[^/]+) ]] && destination_volume="${BASH_REMATCH[1]}"
 
-	if [[ "$debug" != "1" ]]; then
-		echo
-		echo
-		if cp -v "$filename" "$destination_path"; then
-			rm "$filename"
-		else
-			echo "WARNING: copy failed, leaving '$filename' in place." >&2
-		fi
+	if [[ "$destination_volume" != "" ]] && ! mount | grep -qF " on $destination_volume ("; then
+
+		echo "WARNING: '$destination_volume' is not mounted, leaving '$filename' in place." >&2
+
 	else
-		echo " not really, we're in debug mode!"
-		echo
-		echo "cp \"$filename\" \"$destination_path\" && rm \"$filename\""
+
+		echo -n "Moving '$destination_filename'..."
+		mkdir -p "$destination_dir"
+
+		if [[ "$debug" != "1" ]]; then
+			echo
+			echo
+			# On the same volume this is an instant rename with no data rewritten; across volumes
+			# mv copies then removes the original only once the copy has succeeded.
+			if ! mv -v "$filename" "$destination_path"; then
+				echo "WARNING: move failed, leaving '$filename' in place." >&2
+			fi
+		else
+			echo " not really, we're in debug mode!"
+			echo
+			echo "mv \"$filename\" \"$destination_path\""
+		fi
+
 	fi
 
 else
