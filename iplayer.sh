@@ -3,7 +3,7 @@
 ## iplayer.sh v1.04 (27th August 2026) by Andrew Davison
 ##  A cozy layer in front of get_iplayer.
 
-get_iplayer="/opt/homebrew/bin/get_iplayer"
+get_iplayer="/opt/local/bin/get_iplayer"
 jq="/opt/homebrew/bin/jq"
 
 if [[ "$1" == "add" ]]; then
