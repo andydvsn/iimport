@@ -4,7 +4,7 @@
 ##  A cozy layer in front of get_iplayer.
 
 get_iplayer="/opt/local/bin/get_iplayer"
-jq="/opt/homebrew/bin/jq"
+jq="/opt/local/bin/jq"
 
 # Downloads land in get_iplayer's output folder(s) before being filed away. When that's on an
 # external drive which isn't mounted, writing to /Volumes/<drive> would quietly create a plain

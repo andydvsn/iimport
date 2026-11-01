@@ -41,13 +41,13 @@ Dependencies
 
 - AtomicParsley, mediainfo, jq
 
-      brew install atomicparsley mediainfo jq
+      sudo port install get_iplayer AtomicParsley mediainfo jq ffmpeg
 
 
 Installation
 ------------
 
-1. Install get_iplayer, AtomicParsley, mediainfo and jq, and note their paths (the scripts assume Homebrew's Apple Silicon prefix, `/opt/homebrew/bin`, by default — adjust the paths at the top of each script if yours differs).
+1. Install get_iplayer, AtomicParsley, mediainfo and jq, and note their paths (the scripts assume MacPorts' prefix, `/opt/local/bin`, by default — adjust the paths at the top of each script if yours differs).
 2. Copy `iplayer.sh`, `iplayertoplex.sh`, `iplayertagger.sh` and `iplayerfaultfinder.sh` somewhere convenient and make sure they're executable (`chmod +x`).
 3. Run get_iplayer at least once to have it set up its folders, settings and plugins.
 4. Set the contents of `~/.get_iplayer/options` to something like this, adjusting paths for your own library layout:
@@ -58,8 +58,8 @@ Installation
        tvmode fhd,hd,sd
        radiomode high,std
        thumbsize 1920
-       atomicparsley /opt/homebrew/bin/AtomicParsley
-       ffmpeg /opt/homebrew/bin/ffmpeg
+       atomicparsley /opt/local/bin/AtomicParsley
+       ffmpeg /opt/local/bin/ffmpeg
        whitespace 1
        nocopyright 1
        nopurge 1

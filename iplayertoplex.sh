@@ -6,11 +6,11 @@
 debug=0
 
 ###
-atomicparsley="/opt/homebrew/bin/AtomicParsley"
+atomicparsley="/opt/local/bin/AtomicParsley"
 bbcurl="https://www.bbc.co.uk/programmes"
 iplayerurl="https://www.bbc.co.uk/iplayer/episode"
-jq="/opt/homebrew/bin/jq"
-mediainfo="/opt/homebrew/bin/mediainfo"
+jq="/opt/local/bin/jq"
+mediainfo="/opt/local/bin/mediainfo"
 ###
 
 pathtothisscript="$(cd "$(dirname "$0")";pwd -P)"

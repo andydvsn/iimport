@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
-## iplayerfaultfinder.sh v1.01 (6th May 2022) by Andrew Davison
+## iplayerfaultfinder.sh v1.02 (1st November 2026) by Andrew Davison
 ##  Remove lower resolution duplicates.
 
 debug=0
 
 ##
-mediainfo="/opt/homebrew/bin/mediainfo"
+mediainfo="/opt/local/bin/mediainfo"
 ##
 
 if [ $# -ne 1 ]; then
