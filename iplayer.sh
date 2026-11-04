@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## iplayer.sh v1.05 (1st November 2026) by Andrew Davison
+## iplayer.sh v1.06 (3rd November 2026) by Andrew Davison
 ##  A cozy layer in front of get_iplayer.
 
 get_iplayer="/opt/local/bin/get_iplayer"
@@ -15,6 +15,13 @@ checkoutput() {
 	[ -f "$options" ] || return 0
 
 	while IFS= read -r dir; do
+		# get_iplayer takes the rest of the line literally, quotes included, so a quoted path is really a
+		# relative one: it would create a folder called " in the working directory and download there.
+		if [[ "$dir" != /* ]]; then
+			echo "$(date  +'%Y-%m-%d %H:%M:%S') : WARN : Output folder '$dir' isn't an absolute path, so not downloading. Paths in '$options' mustn't be quoted." >&2
+			status=1
+			continue
+		fi
 		[[ "$dir" =~ ^/Volumes/([^/]+) ]] || continue
 		vol="/Volumes/${BASH_REMATCH[1]}"
 		if ! mount | grep -qF " on $vol ("; then
